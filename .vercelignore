@@ -1,0 +1,10 @@
+.git/
+.env*
+.vercel/
+node_modules/
+dist/
+verification/
+.playwright-cli/
+.playwright-mcp/
+supabase/.temp/
+supabase/.branches/

@@ -1,0 +1,9 @@
+node_modules/
+dist/
+verification/
+.playwright-cli/
+.playwright-mcp/
+.env*
+!.env.example
+*.tsbuildinfo
+.vercel/
