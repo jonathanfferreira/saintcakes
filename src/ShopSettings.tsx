@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import type { FormEvent } from 'react';
 import { formatMoney, parseMoney } from './domain';
-import { settingsProblem } from './settings';
+import { joinvilleBairros, settingsProblem } from './settings';
 import type { ShopSettings } from './settings';
 
 type ZoneDraft = { key: string; name: string; fee: string };
@@ -15,6 +15,8 @@ export default function ShopSettingsForm({ settings, onSave }: { settings: ShopS
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
   const [saving, setSaving] = useState(false);
+  const present = new Set(zones.map(zone => zone.name.trim().toLocaleLowerCase('pt-BR')));
+  const missing = joinvilleBairros.filter(name => !present.has(name.toLocaleLowerCase('pt-BR')));
 
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -25,7 +27,9 @@ export default function ShopSettingsForm({ settings, onSave }: { settings: ShopS
       next = { pixKey: pixKey.trim(), pixHolder: pixHolder.trim(), minLeadDays: Number(minLeadDays),
         deliveryZones: zones.filter(zone => zone.name.trim() || zone.fee.trim()).map(zone => {
           if (!zone.name.trim()) throw new Error('Informe o nome de cada bairro.');
-          try { return { name: zone.name.trim(), feeCents: parseMoney(zone.fee || '0') }; }
+          // A blank fee must never become free delivery by accident.
+          if (!zone.fee.trim()) throw new Error(`Informe o frete de ${zone.name.trim()} (use 0,00 para entrega grátis) ou remova o bairro.`);
+          try { return { name: zone.name.trim(), feeCents: parseMoney(zone.fee) }; }
           catch { throw new Error(`Confira o frete de ${zone.name.trim()}.`); }
         }) };
     } catch (e) { setError(e instanceof Error ? e.message : 'Confira os campos.'); return; }
@@ -56,7 +60,10 @@ export default function ShopSettingsForm({ settings, onSave }: { settings: ShopS
           <label>Frete (R$)<input inputMode="decimal" value={zone.fee} placeholder="0,00" onChange={event => setZones(current => current.map(item => item.key === zone.key ? { ...item, fee: event.target.value } : item))} /></label>
           <button type="button" className="quiet" onClick={() => setZones(current => current.filter(item => item.key !== zone.key))}>Remover</button>
         </div>)}</div>}
-        <button type="button" className="secondary" disabled={zones.length >= 60} onClick={() => setZones(current => [...current, { key: crypto.randomUUID(), name: '', fee: '' }])}>Adicionar bairro</button>
+        <div className="zone-actions">
+          <button type="button" className="secondary" disabled={zones.length >= 60} onClick={() => setZones(current => [...current, { key: crypto.randomUUID(), name: '', fee: '' }])}>Adicionar bairro</button>
+          <button type="button" className="secondary" disabled={missing.length === 0} onClick={() => { setZones(current => [...current, ...missing.map(name => ({ key: crypto.randomUUID(), name, fee: '' }))]); setError(''); setMessage(`${missing.length} bairros de Joinville adicionados. Preencha o frete de cada um (0,00 para grátis) ou remova os que vocês não atendem.`); }}>{missing.length === 0 ? 'Bairros de Joinville já carregados' : `Carregar ${missing.length === joinvilleBairros.length ? 'os 43' : `${missing.length} restantes dos`} bairros de Joinville`}</button>
+        </div>
         {settings.deliveryZones.length > 0 && <p className="muted">Hoje: {settings.deliveryZones.map(zone => `${zone.name} ${formatMoney(zone.feeCents)}`).join(' · ')}</p>}
       </article>
       {error && <p role="alert" className="error">{error}</p>}

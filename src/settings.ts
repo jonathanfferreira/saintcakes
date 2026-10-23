@@ -6,6 +6,17 @@ export type ShopSettings = { pixKey: string; pixHolder: string; minLeadDays: num
 export type PublicSettings = Pick<ShopSettings, 'minLeadDays' | 'deliveryZones'>;
 export const defaultSettings: ShopSettings = { pixKey: '', pixHolder: '', minLeadDays: 2, deliveryZones: [] };
 
+// The 43 bairros of Joinville (SC), as named in the city's "Joinville Bairro a Bairro" index;
+// "Joinville Cidade em Dados 2025" confirms 2 districts and 43 bairros (LC nº 54/1997).
+export const joinvilleBairros = [
+  'Adhemar Garcia', 'América', 'Anita Garibaldi', 'Atiradores', 'Aventureiro', 'Boa Vista', 'Boehmerwald', 'Bom Retiro',
+  'Bucarein', 'Centro', 'Comasa', 'Costa e Silva', 'Dona Francisca', 'Espinheiros', 'Fátima', 'Floresta', 'Glória',
+  'Guanabara', 'Iririú', 'Itaum', 'Itinga', 'Jardim Iririú', 'Jardim Paraíso', 'Jardim Sofia', 'Jarivatuba', 'João Costa',
+  'Morro do Meio', 'Nova Brasília', 'Paranaguamirim', 'Parque Guarani', 'Petrópolis', 'Pirabeiraba Centro', 'Profipo',
+  'Rio Bonito', 'Saguaçu', 'Santa Catarina', 'Santo Antônio', 'São Marcos', 'Ulysses Guimarães', 'Vila Cubatão',
+  'Vila Nova', 'Zona Industrial Norte', 'Zona Industrial Tupy',
+] as const;
+
 function zones(value: unknown): DeliveryZone[] {
   if (!Array.isArray(value) || value.length > 60) throw new Error('Bairros inválidos.');
   return value.map(raw => {

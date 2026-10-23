@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { confirmationMessage, parsePublicSettings, parseSettings, settingsProblem, whatsappLink } from './settings.ts';
+import { confirmationMessage, joinvilleBairros, parsePublicSettings, parseSettings, settingsProblem, whatsappLink } from './settings.ts';
 import type { Order } from './domain';
 
 const settings = { pixKey: 'chave-ficticia@example.invalid', pixHolder: 'Loja fictícia', minLeadDays: 2, deliveryZones: [{ name: 'Centro', feeCents: 1000 }] };
@@ -46,4 +46,10 @@ test('whatsappLink adds Brazil code and encodes text', () => {
   assert.equal(whatsappLink('(47) 90000-0001'), 'https://wa.me/5547900000001');
   assert.equal(whatsappLink('+55 47 90000-0001', 'Olá & até'), 'https://wa.me/5547900000001?text=Ol%C3%A1%20%26%20at%C3%A9');
   assert.equal(whatsappLink('1234'), null);
+});
+
+test('joinvilleBairros has the 43 official bairros, unique and valid as delivery zones', () => {
+  assert.equal(joinvilleBairros.length, 43);
+  assert.equal(new Set(joinvilleBairros.map(name => name.toLocaleLowerCase('pt-BR'))).size, 43);
+  assert.equal(settingsProblem({ ...settings, deliveryZones: joinvilleBairros.map(name => ({ name, feeCents: 1000 })) }), null);
 });
