@@ -4,7 +4,7 @@ Decisões confirmadas pelo usuário em 23/10/2026: atender **confeitarias e pada
 
 Arquitetura inicial: **uma aplicação e um banco compartilhados**, com separação obrigatória por loja. Uma instalação por cliente não será o padrão desta fundação; limites de capacidade precisam ser medidos antes de ampliar a operação.
 
-Estado: a fundação feita no Claude (`f88ce1f`) foi recuperada e revisada na branch `codex/multiclientes-foundation`, worktree `C:\Users\fferr\.codex\worktrees\saintcakes-platform`. Fundação e personalização por loja aplicadas **somente ao banco local**, até a migração `20261026140000`. Nenhum deploy ou banco remoto foi alterado nesta evolução. A fase 2 foi validada com lojas e contas fictícias; publicação, provisionamento administrativo com interface e operação comercial ainda estão pendentes.
+Estado: a fundação feita no Claude (`f88ce1f`) foi recuperada e revisada na branch `codex/multiclientes-foundation`, worktree `C:\Users\fferr\.codex\worktrees\saintcakes-platform`. Fundação e personalização por loja aplicadas no banco local e, em 23/10/2026, no projeto remoto Saint Cakes pelo usuário, até a migração `20261026140000`. A publicação foi autorizada; conferir status/commit/alias da Vercel para o estado atual do front. A fase 2 foi validada localmente com lojas e contas fictícias; provisionamento administrativo com interface e operação comercial ainda estão pendentes. Após a execução remota, `public_storefront` retornou Saint Cakes/26 produtos/revisão 1, `public_settings()` legado retornou HTTP 200, loja desconhecida foi recusada e leitura privada anônima foi negada. Login privado em produção ainda depende de verificação autenticada.
 
 ## Fase 1 — fundação no banco (migração `20261026120000_multitenant_foundation.sql`)
 
