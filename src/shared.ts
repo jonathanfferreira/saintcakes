@@ -3,13 +3,14 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { addDays, validateOrder } from './domain.ts';
 import type { Order, OrderLine, OrderStatus } from './domain';
 import type { OrderRequestRecord } from './requests';
+import type { ShopSettings } from './settings';
 
 export type Staff = { userId: string; displayName: string; role: 'owner' | 'attendant' | 'production'; canViewFinancial: boolean };
 export type OrderRecord = { order: Order; revision: number };
 export type ProductionOrder = Pick<Order, 'id' | 'number' | 'customer' | 'date' | 'time' | 'fulfillment' | 'notes' | 'status'> & { lines: Omit<OrderLine, 'unitPriceCents'>[] };
 export type ProductionRecord = { order: ProductionOrder; revision: number };
 export type StaffAccess = Staff & { active: boolean };
-export type SharedMode = { staff: Staff; records: OrderRecord[]; requests: OrderRequestRecord[]; busy: boolean; syncError: string; lastSynced: string | null; save: (order: Order, revision: number | null) => Promise<Order>; updateStatus: (order: Order, revision: number, status: OrderStatus) => Promise<void>; resolveRequest: (id: string, status: 'converted' | 'dismissed') => Promise<void>; refresh: () => Promise<void> };
+export type SharedMode = { staff: Staff; records: OrderRecord[]; requests: OrderRequestRecord[]; settings: ShopSettings | null; busy: boolean; syncError: string; lastSynced: string | null; save: (order: Order, revision: number | null) => Promise<Order>; updateStatus: (order: Order, revision: number, status: OrderStatus) => Promise<void>; resolveRequest: (id: string, status: 'converted' | 'dismissed') => Promise<void>; saveSettings: (settings: ShopSettings) => Promise<void>; refresh: () => Promise<void> };
 
 export function configuration(url: string | undefined, key: string | undefined): { mode: 'local' } | { mode: 'error'; error: string } | { mode: 'shared'; client: SupabaseClient } {
   if (!url && !key) return { mode: 'local' };
@@ -26,7 +27,7 @@ export function errorMessage(error: unknown): string {
   const message = typeof error === 'object' && error && 'message' in error ? String(error.message) : '';
   if (message.includes('ORDER_CONFLICT')) return 'Este pedido foi alterado por outra pessoa. Seu rascunho continua aberto. Copie suas alterações e reabra a versão atual do pedido antes de refazer a edição.';
   if (message.includes('ACCESS_DENIED')) return 'Seu acesso mudou ou não permite esta ação. Solicite à responsável a revisão da permissão.';
-  if (message.includes('INVALID_ORDER') || message.includes('INVALID_REQUEST')) return 'Há dados inválidos no pedido. Confira os campos e tente salvar novamente.';
+  if (message.includes('INVALID_ORDER') || message.includes('INVALID_REQUEST') || message.includes('INVALID_SETTINGS')) return 'Há dados inválidos no pedido. Confira os campos e tente salvar novamente.';
   if (message.includes('Aguarde a atualização')) return 'Aguarde a atualização em andamento e tente novamente.';
   if (message.includes('Seu acesso mudou. Entre novamente.')) return 'Seu acesso mudou. Entre novamente.';
   return 'Não foi possível concluir a operação. Confira a conexão e tente novamente.';

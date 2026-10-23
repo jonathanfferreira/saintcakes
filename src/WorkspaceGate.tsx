@@ -9,6 +9,9 @@ import type { OrderRecord, ProductionRecord, Staff } from './shared';
 import { parseRequestRecord } from './requests';
 import type { OrderRequestRecord } from './requests';
 import type { Order, OrderStatus } from './domain';
+import { parseSettings } from './settings';
+import type { ShopSettings } from './settings';
+import { announceRequests } from './alerts';
 
 export default function WorkspaceGate({ client }: { client: SupabaseClient }) {
   const [session, setSession] = useState<Session | null>(null);
@@ -22,6 +25,8 @@ export default function WorkspaceGate({ client }: { client: SupabaseClient }) {
   const [records, setRecords] = useState<OrderRecord[]>([]);
   const [production, setProduction] = useState<ProductionRecord[]>([]);
   const [requests, setRequests] = useState<OrderRequestRecord[]>([]);
+  const [settings, setSettings] = useState<ShopSettings | null>(null);
+  const knownRequests = useRef<Set<string> | null>(null);
   const [busy, setBusy] = useState(false);
   const [syncError, setSyncError] = useState('');
   const [lastSynced, setLastSynced] = useState<string | null>(null);
@@ -34,7 +39,7 @@ export default function WorkspaceGate({ client }: { client: SupabaseClient }) {
 
   const clear = useCallback(() => {
     generation.current += 1; lock.current = false; currentStaff.current = null;
-    setStaff(null); setRecords([]); setProduction([]); setRequests([]); setLastSynced(null); setSyncError(''); setBusy(false); setShowTeam(false);
+    setStaff(null); setRecords([]); setProduction([]); setRequests([]); setSettings(null); knownRequests.current = null; setLastSynced(null); setSyncError(''); setBusy(false); setShowTeam(false);
   }, []);
 
   useEffect(() => {
@@ -67,8 +72,14 @@ export default function WorkspaceGate({ client }: { client: SupabaseClient }) {
     if (generation.current !== token) return;
     // Only people who can create orders review public requests.
     const inbox = nextStaff.role !== 'production' && nextStaff.canViewFinancial ? parseList(await rpc(client, 'read_order_requests'), parseRequestRecord) : [];
+    const shop = nextStaff.canViewFinancial ? parseSettings(await rpc(client, 'read_settings')) : null;
     if (generation.current !== token) return;
-    setRequests(inbox);
+    // Announce requests that arrived since the previous read, never the backlog found at login.
+    const ids = new Set(inbox.map(item => item.id));
+    const fresh = knownRequests.current ? inbox.filter(item => !knownRequests.current!.has(item.id)).length : 0;
+    knownRequests.current = ids;
+    if (fresh) announceRequests(fresh);
+    setRequests(inbox); setSettings(shop);
     if (nextStaff.canViewFinancial) { setRecords(parseList(data, parseOrderRecord)); setProduction([]); }
     else { setProduction(parseList(data, parseProductionRecord)); setRecords([]); }
     setLastSynced(new Date().toISOString()); setSyncError('');
@@ -76,7 +87,7 @@ export default function WorkspaceGate({ client }: { client: SupabaseClient }) {
 
   const handleFailure = useCallback((failure: unknown, token: number) => {
     if (generation.current !== token) return;
-    setRecords([]); setProduction([]); setRequests([]); setLastSynced(null); setSyncError(errorMessage(failure));
+    setRecords([]); setProduction([]); setRequests([]); setSettings(null); setLastSynced(null); setSyncError(errorMessage(failure));
     if (typeof failure === 'object' && failure && 'message' in failure && String(failure.message).includes('ACCESS_DENIED')) { currentStaff.current = null; setStaff(null); setShowTeam(false); }
   }, []);
 
@@ -91,7 +102,9 @@ export default function WorkspaceGate({ client }: { client: SupabaseClient }) {
   useEffect(() => {
     if (!session?.user.id) return;
     void refresh();
-    const tick = () => { if (document.visibilityState === 'visible') void refresh(); };
+    // Hidden tabs keep checking at a slower pace so new site requests can still be announced.
+    let ticks = 0;
+    const tick = () => { ticks += 1; if (document.visibilityState === 'visible' || ticks % 3 === 0) void refresh(); };
     const timer = window.setInterval(tick, 10_000);
     document.addEventListener('visibilitychange', tick);
     return () => { clearInterval(timer); document.removeEventListener('visibilitychange', tick); };
@@ -128,6 +141,10 @@ export default function WorkspaceGate({ client }: { client: SupabaseClient }) {
     catch (failure) { throw new Error(errorMessage(failure)); }
     finally { void refresh(); }
   }
+  async function saveSettings(next: ShopSettings) {
+    try { setSettings(parseSettings(await rpc(client, 'save_settings', { p_settings: next }))); }
+    catch (failure) { throw new Error(errorMessage(failure)); }
+  }
   async function login(event: FormEvent) {
     event.preventDefault(); if (authBusy) return;
     closing.current = false; setAuthBusy(true); setAuthError(''); setExitFailed(false);
@@ -146,5 +163,5 @@ export default function WorkspaceGate({ client }: { client: SupabaseClient }) {
   if (!authReady) return <main className="shared-login"><p role="status">Verificando acesso…</p></main>;
   if (!session) return <main className="shared-login shared-auth-screen"><div className="shared-login-card"><img src="/brand/saint-cakes.png" alt="Saint Cakes" width="112" height="112" /><h1>Encomendas</h1><p>Entre com sua conta da equipe.</p><form onSubmit={event => void login(event)}><label>E-mail<input type="email" autoComplete="username" required value={email} onChange={event => setEmail(event.target.value)} disabled={authBusy} /></label><label>Senha<input type="password" autoComplete="current-password" required value={password} onChange={event => setPassword(event.target.value)} disabled={authBusy} /></label>{authError && <p role="alert" className="error">{authError}</p>}<button className="primary" disabled={authBusy}>{authBusy ? 'Entrando…' : 'Entrar'}</button></form></div></main>;
   const viewKey = staff ? `${staff.userId}:${staff.role}:${staff.canViewFinancial}` : 'blocked';
-  return <><div className="shared-account"><div><strong>{staff?.displayName ?? 'Conta da equipe'}</strong>{staff && <span>{roleLabels[staff.role]} · {staff.canViewFinancial ? 'Consulta de valores permitida' : 'Consulta de produção'}</span>}<small>{busy ? 'Atualizando…' : lastSynced ? `Atualizado às ${new Date(lastSynced).toLocaleTimeString('pt-BR')}` : 'Aguardando atualização'}</small></div><div><button onClick={() => void refresh()} disabled={busy || authBusy || exitFailed}>Atualizar</button>{staff?.role === 'owner' && <button onClick={() => setShowTeam(current => !current)} aria-expanded={showTeam}>{showTeam ? 'Voltar aos pedidos' : 'Equipe'}</button>}<button onClick={() => void logout()} disabled={authBusy}>{authBusy ? 'Saindo…' : 'Sair'}</button></div></div>{authError && <p role="alert" className="error">{authError}</p>}{syncError && <p role="alert" className="error shared-sync-error">{syncError}</p>}{!staff ? <main className="shared-login"><h1>Acesso da equipe</h1><p>{busy ? 'Carregando permissões…' : 'Não foi possível carregar seu acesso. Use Atualizar para tentar novamente ou solicite a revisão da sua conta.'}</p></main> : <div key={viewKey}>{showTeam && staff.role === 'owner' ? <TeamAccess client={client} staff={staff} onChange={refresh} /> : staff.canViewFinancial ? <App shared={{ staff, records, requests, busy, syncError, lastSynced, save, updateStatus, resolveRequest, refresh }} /> : <ProductionWorkspace records={production} busy={busy} updateStatus={async (record, status) => { await mutate('set_order_status', { p_id: record.order.id, p_status: status, p_expected_revision: record.revision }, false); }} />}</div>}</>;
+  return <><div className="shared-account"><div><strong>{staff?.displayName ?? 'Conta da equipe'}</strong>{staff && <span>{roleLabels[staff.role]} · {staff.canViewFinancial ? 'Consulta de valores permitida' : 'Consulta de produção'}</span>}<small>{busy ? 'Atualizando…' : lastSynced ? `Atualizado às ${new Date(lastSynced).toLocaleTimeString('pt-BR')}` : 'Aguardando atualização'}</small></div><div><button onClick={() => void refresh()} disabled={busy || authBusy || exitFailed}>Atualizar</button>{staff?.role === 'owner' && <button onClick={() => setShowTeam(current => !current)} aria-expanded={showTeam}>{showTeam ? 'Voltar aos pedidos' : 'Equipe'}</button>}<button onClick={() => void logout()} disabled={authBusy}>{authBusy ? 'Saindo…' : 'Sair'}</button></div></div>{authError && <p role="alert" className="error">{authError}</p>}{syncError && <p role="alert" className="error shared-sync-error">{syncError}</p>}{!staff ? <main className="shared-login"><h1>Acesso da equipe</h1><p>{busy ? 'Carregando permissões…' : 'Não foi possível carregar seu acesso. Use Atualizar para tentar novamente ou solicite a revisão da sua conta.'}</p></main> : <div key={viewKey}>{showTeam && staff.role === 'owner' ? <TeamAccess client={client} staff={staff} onChange={refresh} /> : staff.canViewFinancial ? <App shared={{ staff, records, requests, settings, busy, syncError, lastSynced, save, updateStatus, resolveRequest, saveSettings, refresh }} /> : <ProductionWorkspace records={production} busy={busy} updateStatus={async (record, status) => { await mutate('set_order_status', { p_id: record.order.id, p_status: status, p_expected_revision: record.revision }, false); }} />}</div>}</>;
 }

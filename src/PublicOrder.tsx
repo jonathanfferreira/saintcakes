@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { catalog } from './catalog';
@@ -7,6 +7,8 @@ import type { Fulfillment, OrderLine } from './domain';
 import { estimate, MAX_REQUEST_LINES, REQUEST_HORIZON_DAYS, requestProblem } from './requests';
 import type { OrderRequestInput, RequestLine } from './requests';
 import { rpc } from './shared';
+import { parsePublicSettings } from './settings';
+import type { PublicSettings } from './settings';
 import './PublicOrder.css';
 
 type Custom = { key: string; description: string; quantity: string; unit: OrderLine['unit'] };
@@ -30,6 +32,16 @@ export default function PublicOrder({ client }: { client: SupabaseClient | null 
   const [sending, setSending] = useState(false);
   const [sent, setSent] = useState(false);
   const errorRef = useRef<HTMLParagraphElement>(null);
+  // Defaults match the catalogue rule; the server applies the owner's current values regardless.
+  const [shop, setShop] = useState<PublicSettings>({ minLeadDays: 2, deliveryZones: [] });
+  const [zone, setZone] = useState('');
+  useEffect(() => {
+    if (!client) return;
+    let alive = true;
+    rpc(client, 'public_settings').then(value => { if (alive) setShop(parsePublicSettings(value)); }).catch(() => { /* Keep defaults. */ });
+    return () => { alive = false; };
+  }, [client]);
+  const fee = fulfillment === 'delivery' ? shop.deliveryZones.find(item => item.name === zone) : undefined;
 
   const lines = useMemo<RequestLine[]>(() => [
     ...catalog.flatMap(item => {
@@ -38,14 +50,18 @@ export default function PublicOrder({ client }: { client: SupabaseClient | null 
     }),
     ...custom.filter(line => line.description.trim()).map(line => ({ description: `${line.description.trim()} · sob orçamento`.slice(0, 180), quantity: number(line.quantity), unit: line.unit, unitPriceCents: 0 })),
   ], [quantities, custom]);
-  const money = useMemo(() => { try { return estimate(lines); } catch { return null; } }, [lines]);
+  // The fee line is shown here but added by the server from the owner's table, never sent by the browser.
+  const shown = useMemo(() => fee?.feeCents ? [...lines, { description: `Frete · ${fee.name}`, quantity: 1, unit: 'un' as const, unitPriceCents: fee.feeCents }] : lines, [lines, fee]);
+  const money = useMemo(() => { try { return estimate(shown); } catch { return null; } }, [shown]);
+  const quoted = lines.some(line => line.unitPriceCents === 0);
+  const minDate = quoted ? addDays(today, shop.minLeadDays) : today;
 
   function fail(message: string) { setError(message); requestAnimationFrame(() => errorRef.current?.focus()); }
   async function submit(event: FormEvent) {
     event.preventDefault();
     if (sending) return;
-    const input: OrderRequestInput = { customer, phone, date, time, fulfillment, address: fulfillment === 'delivery' ? address : '', notes, lines };
-    const problem = requestProblem(input, today);
+    const input: OrderRequestInput = { customer, phone, date, time, fulfillment, address: fulfillment === 'delivery' ? address : '', deliveryZone: fulfillment === 'delivery' ? zone : '', notes, lines };
+    const problem = requestProblem(input, today, shop);
     if (problem) return fail(problem);
     // Bots fill hidden fields; show the same confirmation without sending anything.
     if (trap) { setSent(true); return; }
@@ -78,7 +94,7 @@ export default function PublicOrder({ client }: { client: SupabaseClient | null 
               </label>)}
             </fieldset>)}
             <fieldset className="public-category"><legend>Personalizado ou fora do catálogo</legend>
-              <p className="muted">Bolos personalizados, kits e outros pedidos são orçados pela equipe. Personalizados precisam de pelo menos dois dias de antecedência.</p>
+              <p className="muted">Bolos personalizados, kits e outros pedidos são orçados pela equipe. {shop.minLeadDays ? `Esses itens precisam de pelo menos ${shop.minLeadDays} dia${shop.minLeadDays === 1 ? '' : 's'} de antecedência.` : ''}</p>
               {custom.map(line => <div className="public-custom" key={line.key}>
                 <label>Descreva<input value={line.description} maxLength={150} placeholder="Ex.: bolo personalizado tema safari, 2 kg" onChange={event => setCustom(current => current.map(item => item.key === line.key ? { ...item, description: event.target.value } : item))} /></label>
                 <label>Quantidade<input inputMode="decimal" value={line.quantity} onChange={event => setCustom(current => current.map(item => item.key === line.key ? { ...item, quantity: event.target.value } : item))} /></label>
@@ -90,13 +106,14 @@ export default function PublicOrder({ client }: { client: SupabaseClient | null 
           </section>
           <section aria-labelledby="step-when"><h2 id="step-when"><span>2</span>Quando e como</h2>
             <div className="public-grid">
-              <label>Data<input type="date" required min={today} max={addDays(today, REQUEST_HORIZON_DAYS)} value={date} onChange={event => setDate(event.target.value)} /></label>
+              <label>Data<input type="date" required min={minDate} max={addDays(today, REQUEST_HORIZON_DAYS)} value={date} onChange={event => setDate(event.target.value)} /></label>
               <label>Horário<input type="time" required value={time} onChange={event => setTime(event.target.value)} /></label>
             </div>
             <div className="public-choice" role="radiogroup" aria-label="Retirada ou entrega">
               {(['pickup', 'delivery'] as Fulfillment[]).map(option => <label key={option} className={fulfillment === option ? 'chosen' : ''}><input type="radio" name="fulfillment" checked={fulfillment === option} onChange={() => setFulfillment(option)} />{option === 'pickup' ? 'Retirar na loja' : 'Entrega em Joinville e região'}</label>)}
             </div>
-            {fulfillment === 'delivery' && <label>Endereço de entrega<textarea rows={2} maxLength={300} value={address} onChange={event => setAddress(event.target.value)} placeholder="Rua, número, bairro e complemento" /><small className="muted">O valor do frete é informado pela equipe.</small></label>}
+            {fulfillment === 'delivery' && shop.deliveryZones.length > 0 && <label>Bairro<select required value={zone} onChange={event => setZone(event.target.value)}><option value="">Escolha o bairro</option>{shop.deliveryZones.map(item => <option key={item.name} value={item.name}>{item.name} · {item.feeCents ? formatMoney(item.feeCents) : 'frete grátis'}</option>)}</select><small className="muted">Não encontrou seu bairro? Chame a Saint Cakes no WhatsApp.</small></label>}
+            {fulfillment === 'delivery' && <label>Endereço de entrega<textarea rows={2} maxLength={300} value={address} onChange={event => setAddress(event.target.value)} placeholder="Rua, número, bairro e complemento" />{!shop.deliveryZones.length && <small className="muted">O valor do frete é informado pela equipe.</small>}</label>}
           </section>
           <section aria-labelledby="step-you"><h2 id="step-you"><span>3</span>Seus dados</h2>
             <div className="public-grid">
@@ -109,7 +126,7 @@ export default function PublicOrder({ client }: { client: SupabaseClient | null 
         </div>
         <aside className="public-summary" aria-label="Resumo do pedido">
           <h2>Seu pedido</h2>
-          {lines.length ? <ul>{lines.map((line, index) => <li key={index}><span>{Number.isFinite(line.quantity) ? line.quantity.toLocaleString('pt-BR') : '?'} {line.unit} · {line.description.replace(' · linha party', '')}</span></li>)}</ul> : <p className="muted">Nenhum item escolhido ainda.</p>}
+          {lines.length ? <ul>{shown.map((line, index) => <li key={index}><span>{Number.isFinite(line.quantity) ? line.quantity.toLocaleString('pt-BR') : '?'} {line.unit} · {line.description.replace(' · linha party', '')}</span></li>)}</ul> : <p className="muted">Nenhum item escolhido ainda.</p>}
           {money && money.totalCents > 0 && <dl><div><dt>Total estimado</dt><dd>{formatMoney(money.totalCents)}{money.quoted ? ' + orçamento' : ''}</dd></div><div><dt>Sinal de 50%</dt><dd>{formatMoney(money.depositCents)}{money.quoted ? ' + 50% do orçamento' : ''}</dd></div></dl>}
           <p className="public-note">Valores estimados pelo catálogo. Frete, personalizações e o valor final são confirmados pela equipe no WhatsApp.</p>
           {error && <p ref={errorRef} tabIndex={-1} role="alert" className="error">{error}</p>}

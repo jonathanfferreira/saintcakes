@@ -12,3 +12,5 @@ const config = configuration(import.meta.env.VITE_SUPABASE_URL, import.meta.env.
 const publicOrder = /^\/pedido\/?$/.test(window.location.pathname);
 if (publicOrder) document.title = 'Saint Cakes · Faça sua encomenda';
 createRoot(document.getElementById('root')!).render(<StrictMode>{publicOrder ? <PublicOrder client={config.mode === 'shared' ? config.client : null} /> : config.mode === 'local' ? <App /> : config.mode === 'error' ? <main className="shared-login"><h1>Confira a configuração</h1><p role="alert">{config.error}</p></main> : <WorkspaceGate client={config.client} />}</StrictMode>);
+// Installable app and request alerts; skipped in development so Vite reloads stay simple.
+if (import.meta.env.PROD && 'serviceWorker' in navigator) window.addEventListener('load', () => { void navigator.serviceWorker.register('/sw.js').catch(() => { /* The app works without it. */ }); });

@@ -6,7 +6,7 @@ import type { OrderRequestInput } from './requests.ts';
 
 const today = '2026-10-22';
 const valid: OrderRequestInput = {
-  customer: 'Cliente fictícia', phone: '(47) 90000-0000', date: '2026-10-24', time: '15:00', fulfillment: 'pickup', address: '', notes: '',
+  customer: 'Cliente fictícia', phone: '(47) 90000-0000', date: '2026-10-24', time: '15:00', fulfillment: 'pickup', address: '', deliveryZone: '', notes: '',
   lines: [{ description: 'Bolo fictício', quantity: 1.5, unit: 'kg', unitPriceCents: 8900 }],
 };
 
@@ -24,6 +24,18 @@ test('requestProblem accepts a complete request and rejects boundary violations'
   assert.match(requestProblem({ ...valid, lines: [{ ...valid.lines[0], unit: 'un', quantity: 1.5 }] }, today)!, /quantidade/);
   assert.match(requestProblem({ ...valid, lines: [{ ...valid.lines[0], quantity: Number.NaN }] }, today)!, /quantidade/);
   assert.match(requestProblem({ ...valid, lines: Array.from({ length: 31 }, () => valid.lines[0]) }, today)!, /30 itens/);
+});
+
+test('requestProblem applies delivery zones and minimum notice for quoted items', () => {
+  const shop = { minLeadDays: 2, deliveryZones: [{ name: 'Centro', feeCents: 1000 }] };
+  const delivery = { ...valid, fulfillment: 'delivery' as const, address: 'Rua fictícia, 1' };
+  assert.match(requestProblem(delivery, today, shop)!, /bairro/);
+  assert.equal(requestProblem({ ...delivery, deliveryZone: 'Centro' }, today, shop), null);
+  assert.equal(requestProblem(delivery, today, { ...shop, deliveryZones: [] }), null);
+  const quoted = { ...valid, lines: [{ description: 'Personalizado', quantity: 1, unit: 'un' as const, unitPriceCents: 0 }] };
+  assert.match(requestProblem({ ...quoted, date: '2026-10-23' }, today, shop)!, /2 dias/);
+  assert.equal(requestProblem({ ...quoted, date: '2026-10-24' }, today, shop), null);
+  assert.equal(requestProblem({ ...valid, date: today }, today, shop), null);
 });
 
 test('estimate totals priced lines, rounds the deposit up and flags quoted items', () => {

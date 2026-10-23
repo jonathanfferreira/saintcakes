@@ -3,6 +3,8 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions, pg_temp;
 select no_plan();
+-- Start from an empty request table so limits and counts ignore earlier local data (rolled back).
+delete from private.order_requests;
 
 insert into auth.users(id, email) values
   ('00000000-0000-4000-8000-000000000011', 'owner@example.invalid'),

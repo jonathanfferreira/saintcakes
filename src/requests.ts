@@ -1,21 +1,24 @@
 import { addDays, calculateOrder } from './domain.ts';
 import type { Fulfillment, Order, OrderLine } from './domain';
+import type { PublicSettings } from './settings';
 
 export type RequestLine = Omit<OrderLine, 'id'>;
-export type OrderRequestInput = { customer: string; phone: string; date: string; time: string; fulfillment: Fulfillment; address: string; notes: string; lines: RequestLine[] };
-export type OrderRequestRecord = { id: string; createdAt: string; request: Omit<OrderRequestInput, 'lines'> & { lines: OrderLine[] } };
+export type OrderRequestInput = { customer: string; phone: string; date: string; time: string; fulfillment: Fulfillment; address: string; deliveryZone: string; notes: string; lines: RequestLine[] };
+export type OrderRequestRecord = { id: string; createdAt: string; request: Omit<OrderRequestInput, 'lines' | 'deliveryZone'> & { lines: OrderLine[] } };
 
 export const MAX_REQUEST_LINES = 30;
 export const REQUEST_HORIZON_DAYS = 180;
 
 /** Client-side mirror of private.submit_order_request; the server remains the authority. */
-export function requestProblem(input: OrderRequestInput, today: string): string | null {
+export function requestProblem(input: OrderRequestInput, today: string, shop: PublicSettings = { minLeadDays: 0, deliveryZones: [] }): string | null {
   const digits = input.phone.replace(/\D/g, '');
   if (input.customer.trim().length < 2 || input.customer.trim().length > 100) return 'Informe seu nome.';
   if (digits.length < 10 || digits.length > 13 || input.phone.trim().length > 30) return 'Informe um WhatsApp com DDD.';
   if (!/^\d{4}-\d{2}-\d{2}$/.test(input.date) || input.date < today || input.date > addDays(today, REQUEST_HORIZON_DAYS)) return `Escolha uma data entre hoje e os próximos ${REQUEST_HORIZON_DAYS} dias.`;
   if (!/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(input.time)) return 'Escolha um horário.';
   if (input.fulfillment === 'delivery' && !input.address.trim()) return 'Informe o endereço de entrega.';
+  if (input.fulfillment === 'delivery' && shop.deliveryZones.length && !shop.deliveryZones.some(zone => zone.name === input.deliveryZone)) return 'Escolha o bairro da entrega.';
+  if (input.lines.some(line => line.unitPriceCents === 0) && input.date < addDays(today, shop.minLeadDays)) return `Itens sob orçamento precisam de pelo menos ${shop.minLeadDays} dia${shop.minLeadDays === 1 ? '' : 's'} de antecedência.`;
   if (input.address.trim().length > 300 || input.notes.trim().length > 1000) return 'O texto ficou longo demais.';
   if (!input.lines.length) return 'Adicione pelo menos um item.';
   if (input.lines.length > MAX_REQUEST_LINES) return `Envie até ${MAX_REQUEST_LINES} itens por pedido.`;
