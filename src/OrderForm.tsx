@@ -29,7 +29,8 @@ export default function OrderForm({ order, date, onSave, onCancel }: Props) {
   });
   const [lines, setLines] = useState<EditableLine[]>(() => order ? order.lines.map(line => ({
     id: line.id, description: line.description, quantity: String(line.quantity).replace('.', ','),
-    unit: line.unit, price: moneyInput(line.unitPriceCents),
+    // A draft from a site request leaves unquoted items blank so the team must price them.
+    unit: line.unit, price: order.number || line.unitPriceCents ? moneyInput(line.unitPriceCents) : '',
   })) : [newLine()]);
   const [received, setReceived] = useState(() => moneyInput(order?.receivedCents ?? 0));
   const [error, setError] = useState('');
@@ -110,7 +111,7 @@ export default function OrderForm({ order, date, onSave, onCancel }: Props) {
     <section className="order-form" aria-labelledby="order-form-title">
       <div className="page-heading">
         <div>
-          <h1 id="order-form-title">{order ? `Editar encomenda #${order.number}` : 'Nova encomenda'}</h1>
+          <h1 id="order-form-title">{order?.number ? `Editar encomenda #${order.number}` : 'Nova encomenda'}</h1>
           <p className="muted">Registre os detalhes combinados com o cliente.</p>
         </div>
         <button type="button" className="secondary" disabled={saving} onClick={onCancel}>Voltar à agenda</button>

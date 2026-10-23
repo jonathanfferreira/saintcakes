@@ -5,16 +5,18 @@ import { addDays as strictAddDays, calculateOrder, formatMoney, localDateKey, va
 import type { Order, OrderStatus } from './domain';
 import { decode, encode, load, mergeOrders, persist } from './storage';
 import type { SharedMode } from './shared';
+import { estimate, requestToOrder } from './requests';
+import type { OrderRequestRecord } from './requests';
 
 const stages: Record<OrderStatus, string> = { pending: 'A confirmar', confirmed: 'Confirmado', preparing: 'Em produção', ready: 'Pronto', delivered: 'Entregue', cancelled: 'Cancelado' };
-type Page = 'agenda' | 'orders' | 'production';
-const labels: Record<Page, string> = { agenda: 'Agenda', orders: 'Encomendas', production: 'Produção' };
-function Icon({ name, size = 20 }: { name: 'calendar' | 'orders' | 'cake' | 'plus' | 'arrow' | 'search'; size?: number }) {
+type Page = 'agenda' | 'orders' | 'production' | 'requests';
+const labels: Record<Page, string> = { agenda: 'Agenda', orders: 'Encomendas', production: 'Produção', requests: 'Pedidos do site' };
+function Icon({ name, size = 20 }: { name: 'calendar' | 'orders' | 'cake' | 'plus' | 'arrow' | 'search' | 'inbox'; size?: number }) {
   const paths = {
     calendar: 'M8 2v4m8-4v4M3 10h18M5 4h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z',
     orders: 'M8 3H5v18h14V3h-3M8 2h8v4H8ZM8 11h8m-8 5h5',
     cake: 'M4 13h16v8H4ZM4 16c2 3 4-3 6 0s4-3 6 0 4 0 4 0M7 13V9h10v4M12 9V5m0-3v1',
-    plus: 'M12 5v14M5 12h14', arrow: 'm9 5 7 7-7 7', search: 'M21 21l-5-5M18 10a8 8 0 1 1-16 0 8 8 0 0 1 16 0Z',
+    plus: 'M12 5v14M5 12h14', arrow: 'm9 5 7 7-7 7', search: 'M21 21l-5-5M18 10a8 8 0 1 1-16 0 8 8 0 0 1 16 0Z', inbox: 'M3 13h5l2 3h4l2-3h5M5 5h14l2 8v6H3v-6Z',
   };
   return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={paths[name]} /></svg>;
 }
@@ -41,6 +43,9 @@ export default function App({ shared }: { shared?: SharedMode }) {
   const canEdit = !shared || shared.staff.role !== 'production';
   const busy = shared?.busy ?? false;
   const editRevision = useRef<number | null>(null);
+  const converting = useRef<string | null>(null);
+  const requests = shared && canEdit ? shared.requests : [];
+  const pages: Page[] = shared && canEdit ? ['agenda', 'orders', 'production', 'requests'] : ['agenda', 'orders', 'production'];
   const raw = useRef(initial.raw);
   const [storageError, setStorageError] = useState(initial.error);
   const [recoveryExported, setRecoveryExported] = useState(false);
@@ -68,6 +73,8 @@ export default function App({ shared }: { shared?: SharedMode }) {
       const saved = await shared.save(order, editRevision.current);
       setEditing(undefined); setDate(saved.date);
       setMessage(`Encomenda #${String(saved.number).padStart(3, '0')} salva para a equipe.`);
+      const request = converting.current; converting.current = null;
+      if (request) await shared.resolveRequest(request, 'converted').catch(() => setError('A encomenda foi salva, mas o pedido do site continua na lista. Descarte-o manualmente.'));
       return;
     }
     if (storageError) throw new Error(storageError);
@@ -137,7 +144,7 @@ export default function App({ shared }: { shared?: SharedMode }) {
     <div className="app-shell">
       <aside className="sidebar">
         <a className="brand" href="#" onClick={e => { e.preventDefault(); navigate('agenda'); }} aria-label="Saint Cakes, ir para agenda"><img src="/brand/saint-cakes.png" alt="Saint Cakes — Fabiano Budal" /><span>Encomendas</span></a>
-        <nav aria-label="Navegação principal">{(['agenda', 'orders', 'production'] as Page[]).map(p => <button key={p} aria-current={page === p && editing === undefined ? 'page' : undefined} onClick={() => navigate(p)}><Icon name={p === 'agenda' ? 'calendar' : p === 'orders' ? 'orders' : 'cake'} />{labels[p]}{p === 'orders' && <span className="nav-count">{orders.length}</span>}</button>)}</nav>
+        <nav aria-label="Navegação principal">{pages.map(p => <button key={p} aria-current={page === p && editing === undefined ? 'page' : undefined} onClick={() => navigate(p)}><Icon name={p === 'agenda' ? 'calendar' : p === 'orders' ? 'orders' : p === 'requests' ? 'inbox' : 'cake'} />{labels[p]}{p === 'orders' && <span className="nav-count">{orders.length}</span>}{p === 'requests' && requests.length > 0 && <span className="nav-count nav-alert">{requests.length}</span>}</button>)}</nav>
         <div className="sidebar-bottom"><div className="small-seal">SC</div><p>Feito com cuidado.<br /><span>Do pedido à entrega.</span></p></div>
       </aside>
       <div className="workspace">
@@ -146,7 +153,7 @@ export default function App({ shared }: { shared?: SharedMode }) {
           {storageError && <div className="error" role="alert">{storageError}</div>}
           {error && <div className="error" role="alert">{error}<button className="quiet" onClick={() => setError('')}>Fechar aviso</button></div>}
           {message && <div className="notice" role="status">{message}<button className="quiet" onClick={() => setMessage('')}>Fechar</button></div>}
-          {editing !== undefined ? canEdit ? <OrderForm key={editing?.id ?? 'new'} order={editing} date={date} onSave={save} onCancel={() => setEditing(undefined)} /> : editing ? <OrderDetails order={editing} onClose={() => setEditing(undefined)} /> : null : <>
+          {editing !== undefined ? canEdit ? <OrderForm key={editing?.id ?? 'new'} order={editing} date={date} onSave={save} onCancel={() => { converting.current = null; setEditing(undefined); }} /> : editing ? <OrderDetails order={editing} onClose={() => setEditing(undefined)} /> : null : page === 'requests' && shared ? <RequestInbox requests={requests} busy={busy} onConvert={record => { if (busy) return; converting.current = record.id; editRevision.current = null; setEditing(requestToOrder(record, new Date().toISOString())); setError(''); }} onDismiss={async record => { try { await shared.resolveRequest(record.id, 'dismissed'); setMessage('Pedido do site descartado.'); } catch (e) { setError(e instanceof Error ? e.message : 'Não foi possível descartar.'); } }} /> : <>
             <div className="page-heading"><div><h1>{page === 'agenda' ? 'Sua agenda, no ponto.' : page === 'production' ? 'O que preparar hoje?' : 'Cada pedido, bem cuidado.'}</h1><p className="muted">{page === 'agenda' ? 'Tudo organizado para cada encomenda sair com carinho.' : page === 'production' ? 'As quantidades do dia, reunidas para a cozinha.' : 'Consulte o histórico, confira os detalhes e acompanhe cada entrega.'}</p></div>{actions}</div>
             {page !== 'orders' && <section className="date-navigation" aria-label="Escolher data"><div className="date-title"><div><h2>{humanDate(date)}</h2><span className="muted">{humanDate(date, { weekday: 'long' })}</span></div><div className="date-controls"><button className="secondary" onClick={() => setDate(localDateKey())}>Hoje</button><label className="date-picker"><span className="sr-only">Data da agenda</span><input type="date" value={date} onChange={e => { if (/^\d{4}-\d{2}-\d{2}$/.test(e.target.value) && e.target.validity.valid) setDate(e.target.value); }} /></label></div></div><div className="week-strip"><button className="day-arrow" aria-label="Dia anterior" disabled={addDays(date, -1) === date} onClick={() => setDate(addDays(date, -1))}><span className="reverse"><Icon name="arrow" /></span></button>{[...new Set(Array.from({ length: 7 }, (_, i) => addDays(date, i - 3)))].map(d => <button key={d} className={`day ${d === date ? 'selected' : ''}`} aria-pressed={d === date} onClick={() => setDate(d)}><span>{humanDate(d, { weekday: 'short' }).replace('.', '')}</span><strong>{d.slice(-2)}</strong><span className="day-dot" data-active={orders.some(o => o.date === d && o.status !== 'cancelled')} /></button>)}<button className="day-arrow" aria-label="Próximo dia" disabled={addDays(date, 1) === date} onClick={() => setDate(addDays(date, 1))}><Icon name="arrow" /></button></div></section>}
             {page !== 'orders' && <div className="daily-line"><span><strong>{liveDay.length}</strong> encomenda{liveDay.length === 1 ? '' : 's'}</span><span>{liveDay.filter(o => o.fulfillment === 'pickup').length} para retirar</span><span>{liveDay.filter(o => o.fulfillment === 'delivery').length} para entregar</span><span className="daily-balance">Saldo a receber <strong>{formatMoney(pendingBalance)}</strong></span></div>}
@@ -190,4 +197,19 @@ function OrderDetails({ order, onClose }: { order: Order; onClose: () => void })
 function PrintSheet({ order }: { order: Order }) {
   const money = calculateOrder(order.lines, order.receivedCents);
   return <section className="print-sheet"><header><img src="/brand/saint-cakes.png" alt="Saint Cakes" /><div><h1>Ficha de encomenda #{String(order.number).padStart(3, '0')}</h1><p>{humanDate(order.date)} · {order.time} · {order.fulfillment === 'pickup' ? 'Retirada' : 'Entrega'}</p></div></header><h2>{order.customer}</h2>{order.phone && <p>Contato: {order.phone}</p>}{order.fulfillment === 'delivery' && <p>Endereço: {order.address}</p>}<p>Andamento: {stages[order.status]}</p><table><thead><tr><th>Descrição</th><th>Quantidade</th><th>Unitário</th><th>Total</th></tr></thead><tbody>{order.lines.map(l => <tr key={l.id}><td>{l.description}</td><td>{l.quantity.toLocaleString('pt-BR')} {l.unit}</td><td>{formatMoney(l.unitPriceCents)}</td><td>{formatMoney(calculateOrder([l]).totalCents)}</td></tr>)}</tbody></table><div className="print-totals"><p>Total <strong>{formatMoney(money.totalCents)}</strong></p><p>Sinal previsto (50%) <strong>{formatMoney(money.depositCents)}</strong></p><p>Recebido, anotado manualmente <strong>{formatMoney(order.receivedCents)}</strong></p><p>Saldo a receber <strong>{formatMoney(money.balanceCents)}</strong></p></div>{order.notes && <><h3>Observações</h3><p className="preserve-lines">{order.notes}</p></>}<p className="print-disclaimer">Ficha de organização de encomenda. Valores recebidos anotados manualmente; não é comprovante bancário ou documento fiscal.</p></section>;
+}
+function RequestInbox({ requests, busy, onConvert, onDismiss }: { requests: OrderRequestRecord[]; busy: boolean; onConvert: (record: OrderRequestRecord) => void; onDismiss: (record: OrderRequestRecord) => Promise<void> }) {
+  return <section className="request-inbox" aria-labelledby="requests-title">
+    <div className="page-heading"><div><h1 id="requests-title">Pedidos do site</h1><p className="muted">Solicitações enviadas pelos clientes. Confira, combine pelo WhatsApp e transforme em encomenda.</p></div></div>
+    {requests.length ? <div className="orders-list">{requests.map(record => { const r = record.request; const money = estimate(r.lines); const whatsapp = r.phone.replace(/\D/g, ''); return <article className="order-row" key={record.id}>
+      <div className="order-time"><strong>{r.time}</strong><span>{humanDate(r.date, { day: '2-digit', month: 'short' })}</span></div>
+      <div className="order-body"><div className="order-name"><strong>{r.customer}</strong><span className="stage">{r.fulfillment === 'pickup' ? 'Retirada' : 'Entrega'}</span></div>
+        <ul className="request-lines">{r.lines.map(line => <li key={line.id}><span>{line.quantity.toLocaleString('pt-BR')} {line.unit} · {line.description}</span><span>{line.unitPriceCents ? formatMoney(estimate([line]).totalCents) : 'Sob orçamento'}</span></li>)}</ul>
+        {r.fulfillment === 'delivery' && <p>Entrega: {r.address}</p>}{r.notes && <p className="preserve-lines">{r.notes}</p>}
+        <div className="order-meta"><span>Recebido em {new Date(record.createdAt).toLocaleString('pt-BR')}</span><a href={`https://wa.me/${whatsapp.length <= 11 ? `55${whatsapp}` : whatsapp}`} target="_blank" rel="noreferrer">WhatsApp {r.phone}</a></div>
+        <div className="row-actions"><button className="primary" disabled={busy} onClick={() => onConvert(record)}>Transformar em encomenda</button><button className="quiet" disabled={busy} onClick={() => { if (window.confirm(`Descartar o pedido de ${r.customer}?`)) void onDismiss(record); }}>Descartar</button></div>
+      </div>
+      <div className="order-price"><strong>{money.totalCents ? formatMoney(money.totalCents) : '—'}</strong><span>{money.quoted ? 'Estimativa + itens sob orçamento' : 'Estimativa do cliente'}</span></div>
+    </article>; })}</div> : <Empty title="Nenhum pedido novo do site." text="Quando um cliente enviar uma encomenda pelo link, ela aparece aqui para conferência." />}
+  </section>;
 }

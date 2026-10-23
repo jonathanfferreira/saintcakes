@@ -22,6 +22,7 @@ Abrir http://127.0.0.1:3022. Porta fixa para preservar a origem dos dados locais
 - Demonstração: persistência local e exportação/restauração JSON validada, com proteção contra importação concorrente. Limite local de 2.000 pedidos; limpar o navegador pode apagar esses dados.
 - Compartilhado: login, pedidos em banco, controle de revisão contra sobrescrita, trilha de alterações de pedidos e exportação pelo dono. Importação de backups para o banco não está implementada.
 - Equipe: dono define função, acesso financeiro e ativação por pessoa. Produção com financeiro consulta valores sem editar pagamentos. Sem financeiro, a API entrega apenas dados operacionais. Contas precisam estar provisionadas previamente.
+- Pedidos do site: `/pedido` é o formulário público para clientes (catálogo com estimativa e sinal de 50%, itens personalizados "sob orçamento", data, retirada/entrega e WhatsApp). O envio vira uma solicitação, não uma encomenda. Dono e atendimento com financeiro veem a aba "Pedidos do site", transformam em encomenda "A confirmar" (itens sem preço precisam ser orçados antes de salvar) ou descartam. Valores do cliente são apenas estimativa. Sem CAPTCHA: há campo-isca e limites no servidor (20 envios/10 min no total, 5/dia por telefone, 300 pendentes).
 
 ## Ambiente compartilhado local
 
@@ -60,7 +61,7 @@ npm test
 npm run typecheck
 npm run lint
 npm run build
-supabase test db --local --network-id saintcakes-local supabase/tests/shared_orders.test.sql
+supabase test db --local --network-id saintcakes-local supabase/tests/shared_orders.test.sql supabase/tests/order_requests.test.sql
 & ./supabase/tests/concurrent_revision.ps1
 supabase db advisors --local --type security --level warn --fail-on error
 ```

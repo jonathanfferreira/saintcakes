@@ -1,0 +1,22 @@
+.public-order{max-width:1120px;margin:0 auto;padding:40px 24px 64px}
+.public-hero{display:flex;gap:24px;align-items:center;margin-bottom:36px}.public-hero img{border-radius:50%;flex-shrink:0}.public-hero p{margin:0;color:var(--muted);max-width:560px}.public-hero h1{margin-bottom:8px}
+.public-eyebrow{font-size:11px;letter-spacing:.16em;text-transform:uppercase;font-weight:600;color:var(--gold)!important;margin-bottom:8px!important}
+.public-layout{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:32px;align-items:start}
+.public-steps{display:grid;gap:28px;min-width:0}.public-steps section{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:24px;display:grid;gap:18px}
+.public-steps h2{display:flex;align-items:center;gap:12px;margin:0}.public-steps h2 span{display:grid;place-items:center;width:32px;height:32px;border-radius:50%;background:var(--ink);color:#fff6e6;font:600 14px Arial,sans-serif;flex-shrink:0}
+.public-steps label{display:grid;gap:8px;font-weight:500}.public-steps input,.public-steps textarea,.public-steps select{border:1px solid var(--line);border-radius:6px;background:#fff;padding:10px;color:var(--ink);max-width:100%;min-width:0}.public-steps textarea{resize:vertical}
+.public-category{border:0;padding:0;margin:0;display:grid;gap:0;min-width:0}.public-category legend{font-family:Georgia,serif;font-size:19px;margin-bottom:10px;padding:0}.public-category>p{font-size:13px;margin:0 0 12px}
+.public-item{display:flex!important;justify-content:space-between;align-items:center;gap:16px;padding:10px 0;border-bottom:1px solid var(--line);font-weight:400!important}.public-item.chosen .public-item-name{color:var(--ink);font-weight:600}
+.public-item-name{display:grid;gap:2px;min-width:0;overflow-wrap:anywhere}.public-item-name small{color:var(--muted);font-weight:400;font-variant-numeric:tabular-nums}
+.public-qty{display:flex;align-items:center;gap:6px;flex-shrink:0}.public-qty input{width:76px;text-align:right;font-variant-numeric:tabular-nums}.public-qty small{width:20px;color:var(--muted)}
+.public-custom{display:grid;grid-template-columns:minmax(0,1fr) 96px 90px auto;gap:10px;align-items:end;padding:12px 0;border-bottom:1px solid var(--line)}
+.public-custom+.secondary,.public-category>.secondary{justify-self:start;margin-top:12px}
+.public-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.public-choice{display:grid;grid-template-columns:1fr 1fr;gap:10px}.public-choice label{display:flex!important;align-items:center;gap:10px;border:1px solid var(--line);border-radius:6px;padding:12px;min-height:48px;cursor:pointer}.public-choice label.chosen{border-color:var(--gold);background:#f6eedf}.public-choice input{width:18px;height:18px;min-height:18px;accent-color:var(--gold)}
+.public-trap{position:absolute!important;left:-10000px;width:1px;height:1px;overflow:hidden}
+.public-summary{position:sticky;top:24px;background:#eee5d6;border-radius:8px;padding:24px;display:grid;gap:14px}.public-summary h2{margin:0}.public-summary ul{list-style:none;padding:0;margin:0;display:grid;gap:8px;font-size:13px;max-height:40vh;overflow:auto}.public-summary li{overflow-wrap:anywhere;padding-bottom:8px;border-bottom:1px solid #d8cbb7}
+.public-summary dl{margin:0;display:grid;gap:8px}.public-summary dl div{display:flex;justify-content:space-between;gap:12px;font-size:14px}.public-summary dt{color:#725e46}.public-summary dd{margin:0;font-weight:600;text-align:right;font-variant-numeric:tabular-nums}
+.public-note{font-size:12px;color:#725e46;margin:0}.public-summary .error{margin:0}.public-summary .primary{width:100%}
+.public-done{max-width:520px;text-align:center;padding-top:10vh}.public-done img{border-radius:50%;margin-bottom:20px}
+@media(max-width:900px){.public-layout{grid-template-columns:1fr}.public-summary{position:static}}
+@media(max-width:600px){.public-order{padding:24px 16px 48px}.public-hero{flex-direction:column;align-items:flex-start;gap:16px}.public-hero img{width:80px;height:80px}.public-steps section{padding:18px 16px}.public-grid,.public-choice{grid-template-columns:1fr}.public-custom{grid-template-columns:1fr 1fr}.public-custom label:first-child{grid-column:1/-1}}

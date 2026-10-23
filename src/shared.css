@@ -2,3 +2,5 @@
 
 .shared-auth-screen{width:100%;max-width:none;min-height:100vh;min-height:100dvh;margin:0;padding:clamp(24px,6vh,72px) 24px;display:grid;place-items:center;background:var(--paper)}
 .shared-login-card{width:100%;max-width:392px;min-width:0}
+
+.nav-alert{background:var(--gold);color:#fff;border-radius:10px;padding:1px 7px;opacity:1!important}.request-lines{list-style:none;padding:0;margin:8px 0;display:grid;gap:4px;font-size:12px}.request-lines li{display:flex;justify-content:space-between;gap:12px;overflow-wrap:anywhere}.request-lines li span:last-child{white-space:nowrap;color:var(--muted)}.request-inbox .order-body>p{margin:6px 0}.request-inbox .order-meta a{color:var(--gold);font-weight:600}.request-inbox .row-actions .primary{min-height:40px;padding:8px 14px;font-size:12px}
