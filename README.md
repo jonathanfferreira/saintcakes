@@ -18,7 +18,8 @@ Abrir http://127.0.0.1:3022. Porta fixa para preservar a origem dos dados locais
 - Cadastro/edição de encomenda com cliente, data, horário, retirada/entrega, endereço, observações e itens por unidade/kg/cento.
 - 26 opções iniciais conferidas no PDF fornecido, páginas 3 e 17; catálogo parcial, preços editáveis.
 - Total, sinal previsto de 50% e saldo em centavos; recebido anotado manualmente e independente do andamento.
-- Agenda diária, histórico, busca e filtro por etapa; resumo de produção, ficha de impressão.
+- Agenda diária, histórico, busca e filtro por etapa; resumo de produção.
+- Impressão térmica (bobina 80mm ou 58mm, pelo `window.print` do navegador, qualquer impressora com driver Windows): comanda da cozinha sem valores e comprovante do cliente com total, sinal, recebido, saldo e Pix. Não é documento fiscal. Em Produção, o painel "Impressora de comandas" liga por aparelho (`src/printing.ts`, localStorage) a impressão automática da comanda quando uma encomenda vira Confirmada; ao ligar, as já confirmadas são marcadas como impressas. Sem janela de impressão só com o Chrome aberto por atalho com `--kiosk-printing` e a térmica como padrão.
 - Demonstração: persistência local e exportação/restauração JSON validada, com proteção contra importação concorrente. Limite local de 2.000 pedidos; limpar o navegador pode apagar esses dados.
 - Compartilhado: login, pedidos em banco, controle de revisão contra sobrescrita, trilha de alterações de pedidos e exportação pelo dono. Importação de backups para o banco não está implementada.
 - Equipe: dono define função, acesso financeiro e ativação por pessoa. Produção com financeiro consulta valores sem editar pagamentos. Sem financeiro, a API entrega apenas dados operacionais. Contas precisam estar provisionadas previamente.
@@ -77,7 +78,7 @@ Se o filtro RTK falhar ao interpretar o lint: `rtk proxy npm run lint`. Evidênc
 
 ## Limites e próximos incrementos
 
-Não há WhatsApp conectado, confirmação bancária, cobrança, emissão fiscal, cálculo de frete por distância, kits ou topper. Frete por bairro e descontos configurados são descritos acima. Catálogo/regras em [CATALOG.md](CATALOG.md), produto em [PRODUCT.md](PRODUCT.md), identidade em [DESIGN.md](DESIGN.md). Observações/descrições são compartilhadas com a produção: não anotar nelas finanças sigilosas.
+Não há WhatsApp conectado, confirmação bancária, cobrança, emissão fiscal (NFC-e exige certificado A1, CSC da SEFAZ-SC, NCM do contador e serviço emissor), cálculo de frete por distância, kits ou topper. Frete por bairro e descontos configurados são descritos acima. Catálogo/regras em [CATALOG.md](CATALOG.md), produto em [PRODUCT.md](PRODUCT.md), identidade em [DESIGN.md](DESIGN.md). Observações/descrições são compartilhadas com a produção: não anotar nelas finanças sigilosas.
 
 Antes de ampliar a operação: conferir provisionamento/recuperação de acesso, backup e restauração do banco; validar catálogo completo, personalizações e políticas comerciais; conferir segurança do ambiente e aparelhos. Auditoria atual é de pedidos, não de mudanças de permissão. Backend atual é para uma única confeitaria; desempenho em volume e dispositivos físicos não medido. Estado de implantação em GROWTH.md.
 

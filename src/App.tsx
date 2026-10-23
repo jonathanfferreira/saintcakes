@@ -17,6 +17,8 @@ import ShopSettingsForm from './ShopSettings';
 import { confirmationMessage, defaultSettings, whatsappLink } from './settings';
 import { alertsEnabled, alertsSupported, enableAlerts } from './alerts';
 import { groupOrders, orderGroupLabels } from './metrics';
+import { PrintHost, PrinterPanel, printTickets, useKitchenAutoPrint } from './Tickets';
+import { loadPrefs } from './printing';
 
 /** Signed-in account controls, supplied by WorkspaceGate and drawn inside the app shell. */
 export type AccountControls = { name: string; detail: string; sync: string; busy: boolean; loggingOut: boolean; onRefresh: () => void; onLogout: () => void; team?: ReactNode };
@@ -99,7 +101,8 @@ export default function App({ shared, account }: { shared?: SharedMode; account?
   const [editing, setEditing] = useState<Order | null | undefined>();
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
-  const [printOrder, setPrintOrder] = useState<Order | null>(null);
+  const [printPrefs, setPrintPrefs] = useState(loadPrefs);
+  useKitchenAutoPrint(orders, printPrefs.autoKitchen);
   const file = useRef<HTMLInputElement>(null);
   const today = localDateKey();
   const selected = orders.find(order => order.id === selectedId) ?? null;
@@ -236,7 +239,8 @@ export default function App({ shared, account }: { shared?: SharedMode; account?
         </div></div>
       <p className="sc-day-title"><strong>{humanDate(date, { weekday: 'long', day: 'numeric', month: 'long' })}</strong> · {kitchen.length} {kitchen.length === 1 ? 'comanda' : 'comandas'}</p>
       {prep.size > 0 && <div className="sc-card sc-prep"><h2>A preparar</h2><ul>{[...prep.values()].map(item => <li key={`${item.description}|${item.unit}`}><span>{item.description}</span><strong className="sc-num">{Number(item.quantity.toFixed(3)).toLocaleString('pt-BR')} {item.unit}</strong></li>)}</ul><p>Soma das comandas confirmadas e em produção; as prontas ficam de fora.</p></div>}
-      {kitchen.length ? <div className="sc-comandas">{kitchen.map(order => <Comanda key={order.id} order={order} busy={busy || !!storageError} onAdvance={next => void updateStatus(order, next)} />)}</div>
+      <PrinterPanel prefs={printPrefs} orders={orders} onChange={setPrintPrefs} />
+      {kitchen.length ? <div className="sc-comandas">{kitchen.map(order => <Comanda key={order.id} order={order} busy={busy || !!storageError} onAdvance={next => void updateStatus(order, next)} onPrint={() => printTickets([{ kind: 'kitchen', order }])} />)}</div>
         : <Empty title="Cozinha em dia." text="Encomendas confirmadas para esta data aparecem aqui como comandas, com o que preparar." />}
     </section>;
   } else {
@@ -262,7 +266,7 @@ export default function App({ shared, account }: { shared?: SharedMode; account?
         {pastCount > 0 && !needle && <button type="button" className="sc-btn sc-btn-secondary sc-past-toggle" onClick={() => setShowPast(current => !current)}>{showPast ? 'Ocultar anteriores' : `Mostrar ${pastCount} anteriores`}</button>}
         <DataFooter />
       </div>
-      {selected && <OrderDetail order={selected} shop={shop} canEdit={canEdit} busy={busy || !!storageError} statusOptions={statusOptions(selected)} onClose={() => setSelectedId(null)} onEdit={() => beginEdit(selected)} onStatus={next => void updateStatus(selected, next)} onPrint={() => { setPrintOrder(selected); setTimeout(() => window.print(), 100); }} />}
+      {selected && <OrderDetail order={selected} shop={shop} canEdit={canEdit} busy={busy || !!storageError} statusOptions={statusOptions(selected)} onClose={() => setSelectedId(null)} onEdit={() => beginEdit(selected)} onStatus={next => void updateStatus(selected, next)} onPrintKitchen={() => printTickets([{ kind: 'kitchen', order: selected }])} onPrintReceipt={() => printTickets([{ kind: 'receipt', order: selected, shop }])} />}
     </section>;
   }
 
@@ -293,7 +297,7 @@ export default function App({ shared, account }: { shared?: SharedMode; account?
       </div>
       <nav className="sc-tabs" aria-label="Navegação">{tabs.map(p => <button key={p} type="button" aria-current={current === p || (p === 'more' && !tabs.includes(current)) ? 'page' : undefined} onClick={() => navigate(p)}><span className="sc-tab-icon"><Icon name={pageIcons[p]} />{badge(p) > 0 && <span className="sc-badge sc-num">{badge(p)}</span>}</span><span>{shortLabels[p] ?? labels[p]}</span></button>)}</nav>
     </div>
-    {printOrder && <PrintSheet order={printOrder} />}
+    <PrintHost />
   </>;
 }
 
@@ -301,7 +305,7 @@ function Empty({ title, text, children }: { title: string; text: string; childre
   return <div className="sc-empty"><Icon name="orders" size={28} /><h2>{title}</h2><p>{text}</p>{children && <div>{children}</div>}</div>;
 }
 
-function OrderDetail({ order, shop, canEdit, busy, statusOptions, onClose, onEdit, onStatus, onPrint }: { order: Order; shop: Pick<ShopSettings, 'pixKey' | 'pixHolder'>; canEdit: boolean; busy: boolean; statusOptions: [OrderStatus, string][]; onClose: () => void; onEdit: () => void; onStatus: (next: OrderStatus) => void; onPrint: () => void }) {
+function OrderDetail({ order, shop, canEdit, busy, statusOptions, onClose, onEdit, onStatus, onPrintKitchen, onPrintReceipt }: { order: Order; shop: Pick<ShopSettings, 'pixKey' | 'pixHolder'>; canEdit: boolean; busy: boolean; statusOptions: [OrderStatus, string][]; onClose: () => void; onEdit: () => void; onStatus: (next: OrderStatus) => void; onPrintKitchen: () => void; onPrintReceipt: () => void }) {
   const money = orderMoney(order);
   const whatsapp = order.status === 'cancelled' ? null : whatsappLink(order.phone, confirmationMessage(order, shop));
   const pay = depositState(order);
@@ -316,7 +320,8 @@ function OrderDetail({ order, shop, canEdit, busy, statusOptions, onClose, onEdi
     <div className="sc-detail-actions">
       {whatsapp && <a className="sc-btn sc-btn-leaf" href={whatsapp} target="_blank" rel="noreferrer" title="Abre o WhatsApp com a mensagem de confirmação pronta"><Icon name="chat" />Mensagem WhatsApp</a>}
       {canEdit && <button type="button" className="sc-btn sc-btn-secondary" disabled={busy} onClick={onEdit}><Icon name="edit" />Editar</button>}
-      <button type="button" className="sc-btn sc-btn-secondary" onClick={onPrint}><Icon name="print" />Imprimir</button>
+      <button type="button" className="sc-btn sc-btn-secondary" onClick={onPrintKitchen} title="Comanda da cozinha, sem valores"><Icon name="print" />Comanda</button>
+      <button type="button" className="sc-btn sc-btn-secondary" onClick={onPrintReceipt} title="Comprovante para o cliente, com valores e saldo"><Icon name="print" />Comprovante</button>
     </div>
     <label className="sc-field">Andamento<select value={order.status} disabled={busy || statusOptions.length < 2} onChange={e => onStatus(e.target.value as OrderStatus)}>{statusOptions.map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select></label>
     <section aria-labelledby="detail-items"><h3 id="detail-items">Itens</h3>
@@ -332,11 +337,6 @@ function OrderDetail({ order, shop, canEdit, busy, statusOptions, onClose, onEdi
     {order.notes && <section aria-labelledby="detail-notes"><h3 id="detail-notes">Observações</h3><p className="sc-notes">{order.notes}</p></section>}
     {!canEdit && <p className="sc-muted">Seu acesso consulta valores e atualiza a produção. Alterações e recebimentos ficam com o atendimento.</p>}
   </aside>;
-}
-
-function PrintSheet({ order }: { order: Order }) {
-  const money = orderMoney(order);
-  return <section className="print-sheet"><header><img src="/brand/saint-cakes.png" alt="Saint Cakes" /><div><h1>Ficha de encomenda #{String(order.number).padStart(3, '0')}</h1><p>{humanDate(order.date)} · {order.time} · {order.fulfillment === 'pickup' ? 'Retirada' : 'Entrega'}</p></div></header><h2>{order.customer}</h2>{order.phone && <p>Contato: {order.phone}</p>}{order.fulfillment === 'delivery' && <p>Endereço: {order.address}</p>}<p>Andamento: {stageLabels[order.status]}</p><table><thead><tr><th>Descrição</th><th>Quantidade</th><th>Unitário</th><th>Total</th></tr></thead><tbody>{order.lines.map(l => <tr key={l.id}><td>{l.description}</td><td>{l.quantity.toLocaleString('pt-BR')} {l.unit}</td><td>{formatMoney(l.unitPriceCents)}</td><td>{formatMoney(lineCents(l))}</td></tr>)}</tbody></table><div className="print-totals">{money.discountCents > 0 && <><p>Subtotal <strong>{formatMoney(money.subtotalCents)}</strong></p><p>Desconto{order.couponCode ? ` (cupom ${order.couponCode})` : ''} <strong>− {formatMoney(money.discountCents)}</strong></p></>}<p>Total <strong>{formatMoney(money.totalCents)}</strong></p><p>Sinal previsto (50%) <strong>{formatMoney(money.depositCents)}</strong></p><p>Recebido, anotado manualmente <strong>{formatMoney(order.receivedCents)}</strong></p><p>Saldo a receber <strong>{formatMoney(money.balanceCents)}</strong></p></div>{order.notes && <><h3>Observações</h3><p className="preserve-lines">{order.notes}</p></>}<p className="print-disclaimer">Ficha de organização de encomenda. Valores recebidos anotados manualmente; não é comprovante bancário ou documento fiscal.</p></section>;
 }
 
 function RequestInbox({ requests, busy, onConvert, onDismiss }: { requests: OrderRequestRecord[]; busy: boolean; onConvert: (record: OrderRequestRecord) => void; onDismiss: (record: OrderRequestRecord) => Promise<void> }) {

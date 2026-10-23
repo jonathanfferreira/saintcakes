@@ -208,26 +208,7 @@ main#main{display:grid;gap:16px;padding:20px 16px calc(96px + env(safe-area-inse
   .sc-orders.has-detail{grid-template-columns:minmax(0,1fr) 440px}
 }
 
-/* ---------- Print: only the order sheet ---------- */
-.print-sheet{display:none}
-@media print{
-  @page{margin:16mm}
-  html,body,#root{min-height:0;background:white}
-  #root{display:block}
-  body{color:#222}
-  .sc-shell,.skip,.sc-flash,.sc-gate-alert,.sc-account-bar,.sc-tabs{display:none!important}
-  .print-sheet{display:block;font-family:var(--sc-text);font-size:11pt;line-height:1.5}
-  .print-sheet header{display:flex;align-items:center;gap:20px;border-bottom:1px solid #999;padding-bottom:20px;margin-bottom:24px}
-  .print-sheet header img{width:95px}
-  .print-sheet h1{font-size:20pt}
-  .print-sheet h2{font-size:16pt}
-  .print-sheet table{width:100%;border-collapse:collapse;margin:24px 0}
-  .print-sheet th,.print-sheet td{text-align:left;border-bottom:1px solid #ccc;padding:10px 6px;overflow-wrap:anywhere}
-  .print-sheet tr{break-inside:avoid}
-  .print-totals{margin-left:auto;max-width:350px}
-  .print-totals p{display:flex;justify-content:space-between;gap:16px}
-  .print-disclaimer{border-top:1px solid #999;padding-top:20px;margin-top:30px;font-size:9pt}
-}
+/* Printing: thermal tickets live in Tickets.css. */
 
 /* ---------- Finish-review fixes ---------- */
 /* While the order form is open the phone tab bar steps aside for the form's own save bar. */

@@ -15,3 +15,4 @@
 .sc-comanda li strong{font-weight:700}
 .sc-comanda-notes{margin:0;padding:10px 12px;border-radius:var(--sc-r-sm);background:var(--sc-gold-tint);font-size:.9375rem;white-space:pre-wrap;overflow-wrap:anywhere}
 .sc-comanda .sc-btn{width:100%;min-height:52px;font-size:1rem;margin-top:4px}
+.sc-comanda .sc-comanda-print{min-height:44px;margin-top:0;font-size:.9375rem}

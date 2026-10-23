@@ -49,7 +49,7 @@ function assertDisplayCents(value: number): void {
   }
 }
 
-function lineTotalCents(line: OrderLine): number {
+export function lineTotalCents(line: OrderLine): number {
   const quantityMilli = Math.round(line.quantity * 1000);
   const product = quantityMilli * line.unitPriceCents;
   if (!Number.isSafeInteger(product)) {
