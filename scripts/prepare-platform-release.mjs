@@ -19,7 +19,11 @@ end $guard$;
 create temporary table release_before(table_name text primary key, fingerprint text) on commit drop;
 `;
 for (const table of tables) {
-  const row = table === 'shop_settings' ? "to_jsonb(t) - 'id' - 'tenant_id'" : "to_jsonb(t) - 'tenant_id'";
+  // A atribuição de tenant_id é um UPDATE: o gatilho existente avança a revisão do cliente uma vez.
+  // Exigimos esse avanço exato, sem ignorar a revisão nem qualquer dado comercial/consentimento.
+  const row = table === 'shop_settings' ? "to_jsonb(t) - 'id' - 'tenant_id'"
+    : table === 'customers' ? "(to_jsonb(t) - 'tenant_id') || jsonb_build_object('revision', t.revision + 1)"
+    : "to_jsonb(t) - 'tenant_id'";
   sql += `insert into release_before select '${table}', md5(coalesce(string_agg((${row})::text, E'\\n' order by (${row})::text),'')) from private.${table} t;\n`;
 }
 for (const name of versions) {
@@ -28,7 +32,7 @@ for (const name of versions) {
   sql += `insert into supabase_migrations.schema_migrations(version, name, statements) values (${literal(name.slice(0,14))}, ${literal(name.slice(15))}, array[${literal(source)}]);\n`;
 }
 for (const table of tables) {
-  const row = table === 'shop_settings' ? "to_jsonb(t) - 'tenant_id'" : "to_jsonb(t) - 'tenant_id'";
+  const row = "to_jsonb(t) - 'tenant_id'";
   sql += `do $check$ begin if (select fingerprint from release_before where table_name='${table}') is distinct from (select md5(coalesce(string_agg((${row})::text, E'\\n' order by (${row})::text),'')) from private.${table} t) then raise exception 'DATA_CHANGED_${table}'; end if; end $check$;\n`;
 }
 sql += `do $check$ begin
