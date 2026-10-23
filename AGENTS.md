@@ -2,7 +2,7 @@
 
 Siga também as instruções ECAPX e `CONTEXT/AI-MODEL-ROUTING.md` do workspace. Leia PRODUCT.md e DESIGN.md antes de alterar fluxos ou identidade.
 
-- React + TypeScript + Vite; modo de demonstração em localStorage e modo compartilhado com Supabase Auth/Postgres. O backend foi aplicado somente à pilha local `saintcakes`, portas 54350–54359. Não apresentar como publicado ou pronto para operação real.
+- React + TypeScript + Vite; modo de demonstração em localStorage e modo compartilhado com Supabase Auth/Postgres. Pilha local `saintcakes`, portas 54350–54359. Banco remoto exclusivo `uzesslqldbuplovidgkq`: migrações até `20261025130000` aplicadas com autorização em 23/10/2026. Conferir implantação e histórico remoto antes de publicar ou aplicar novas migrações.
 - Dono administra acessos; atendimento com financeiro cria/edita pedidos e anota pagamentos; produção atualiza apenas confirmado → em produção → pronto. Acesso financeiro é configurável POR PESSOA, nunca liberado automaticamente para a equipe toda. Dono mantém acesso financeiro; ninguém altera o próprio acesso.
 - Sem permissão financeira, o servidor retorna apenas a projeção operacional, sem preço/recebido/contato/endereço. Ocultar botões não é autorização. Membership ativa no banco é a autoridade, nunca metadados editáveis do usuário/JWT. Texto livre é visível à produção; não colocar informação financeira sigilosa nas observações/descrições.
 - Dados locais do navegador e compartilhados ficam separados; nunca enviar backups/exemplos locais ao banco automaticamente. Não importar pedidos reais sem necessidade/autorização; exemplos e verificações usam pessoas fictícias.
@@ -14,3 +14,6 @@ Siga também as instruções ECAPX e `CONTEXT/AI-MODEL-ROUTING.md` do workspace.
 - Não redesenhar a marca: usar logo fornecida, creme, marrom e dourado. Controles acessíveis e legíveis no celular.
 - Verificar mudanças de lógica com testes de fronteira. Executar `npm test`, `npm run typecheck`, `npm run lint` e `npm run build`; para banco/permissões, executar pgTAP local, concorrência e advisors, além de contas separadas no navegador/API. Não afirmar conformidade WCAG integral por uma inspeção pontual.
 - Não publicar, criar recursos remotos, conectar WhatsApp, comprar serviços ou alterar produção por inferência.
+- Cupons, central de clientes e pronta entrega: contratos e regras em GROWTH.md. Cupons são geridos pelo dono; clientes/vitrine exigem permissão de editar encomendas. Exportação de marketing exige dono e consentimento; não enviar campanhas automaticamente.
+- Edição de vitrine envia `updatedAt` integral, incluindo microssegundos. Clientes usam `patch_customer` com revisão esperada e resposta completa. Nunca reenviar estoque ou consentimento antigo sem proteção contra conflito.
+- Converter solicitação usa `convert_order_request`, transação única com vínculo ao pedido. Não voltar a separar `save_order`/`resolve_order_request` nem orientar descarte de solicitação cuja encomenda já foi salva. IDs/quantidades/unidades de itens reservados precisam ser preservados.

@@ -5,6 +5,7 @@ import {
   calculateOrder,
   formatMoney,
   localDateKey,
+  orderMoney,
   parseMoney,
   validateOrder,
   type Order,
@@ -70,18 +71,24 @@ test('formatMoney apresenta centavos como moeda brasileira e valida os limites',
 
 test('calculateOrder arredonda cada linha e cobra sinal de metade para cima em total ímpar', () => {
   assert.deepEqual(calculateOrder([sampleLine]), {
+    subtotalCents: 101,
+    discountCents: 0,
     totalCents: 101,
     depositCents: 51,
     balanceCents: 101,
     depositDueCents: 51,
   });
   assert.deepEqual(calculateOrder([{ ...sampleLine, quantity: 0.005, unit: 'kg', unitPriceCents: 101 }]), {
+    subtotalCents: 1,
+    discountCents: 0,
     totalCents: 1,
     depositCents: 1,
     balanceCents: 1,
     depositDueCents: 1,
   });
   assert.deepEqual(calculateOrder([sampleLine], 51), {
+    subtotalCents: 101,
+    discountCents: 0,
     totalCents: 101,
     depositCents: 51,
     balanceCents: 50,
@@ -166,4 +173,17 @@ test('validateOrder não executa getters e rejeita estruturas malformadas', () =
   const sparseLines = [sampleLine];
   delete sparseLines[0];
   assert.throws(() => validateOrder({ ...sampleOrder(), lines: sparseLines }), { name: 'TypeError' });
+});
+
+test('desconto de cupom reduz total e sinal, nunca zera o pedido e viaja com o código', () => {
+  const big = { ...sampleLine, quantity: 1, unit: 'un' as const, unitPriceCents: 10000 };
+  assert.deepEqual(calculateOrder([big], 0, 1000), { subtotalCents: 10000, discountCents: 1000, totalCents: 9000, depositCents: 4500, balanceCents: 9000, depositDueCents: 4500 });
+  assert.throws(() => calculateOrder([big], 0, 10000), /zerar/);
+  assert.throws(() => calculateOrder([big], 9001, 1000), /recebido/);
+  assert.throws(() => calculateOrder([big], 0, -1), { name: 'RangeError' });
+  const withCoupon = validateOrder(sampleOrder({ lines: [big], receivedCents: 9000, discountCents: 1000, couponCode: 'BEMVINDO10' }));
+  assert.equal(orderMoney(withCoupon).balanceCents, 0);
+  assert.equal(withCoupon.couponCode, 'BEMVINDO10');
+  assert.equal('discountCents' in validateOrder(sampleOrder({ lines: [big] })), false);
+  assert.throws(() => validateOrder(sampleOrder({ lines: [big], discountCents: 1000 })), /Desconto/);
 });

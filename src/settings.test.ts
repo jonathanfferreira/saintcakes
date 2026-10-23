@@ -53,3 +53,9 @@ test('joinvilleBairros has the 43 official bairros, unique and valid as delivery
   assert.equal(new Set(joinvilleBairros.map(name => name.toLocaleLowerCase('pt-BR'))).size, 43);
   assert.equal(settingsProblem({ ...settings, deliveryZones: joinvilleBairros.map(name => ({ name, feeCents: 1000 })) }), null);
 });
+
+test('confirmationMessage shows the coupon discount before the total', () => {
+  const text = confirmationMessage({ ...order, discountCents: 1335, couponCode: 'BEMVINDO10' }, settings);
+  assert.match(text, /Subtotal: R\$\s133,50\nDesconto \(cupom BEMVINDO10\): − R\$\s13,35\nTotal: R\$\s120,15/);
+  assert.match(text, /Sinal de 50%: R\$\s60,08/);
+});
