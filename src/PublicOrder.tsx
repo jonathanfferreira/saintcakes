@@ -7,8 +7,10 @@ import { catalog } from './catalog';
 import type { CatalogItem } from './catalog';
 import { addDays, formatMoney, localDateKey } from './domain';
 import type { Fulfillment, OrderLine } from './domain';
-import { estimate, MAX_REQUEST_LINES, REQUEST_HORIZON_DAYS, requestProblem } from './requests';
+import { estimate, MAX_REQUEST_LINES, REQUEST_HORIZON_DAYS, requestPayload, requestProblem } from './requests';
 import type { OrderRequestInput, RequestLine } from './requests';
+import { couponMessage, parseCouponQuote, parsePublicShowcaseItem, showcasePhotoUrl } from './growth';
+import type { PublicShowcaseItem } from './growth';
 import { rpc } from './shared';
 import { parsePublicSettings } from './settings';
 import type { PublicSettings } from './settings';
@@ -27,6 +29,12 @@ const firstAdd = (item: CatalogItem) => item.unit === 'kg' ? 1 : 10;
 const shortName = (item: CatalogItem) => item.description.replace(' · linha party', '').replace(/^Bolo /, '');
 const qtyText = (value: number) => value.toLocaleString('pt-BR', { maximumFractionDigits: 3 });
 const parseQty = (value: string) => Number(value.trim().replace(',', '.'));
+const BADGE = '/brand/saint-cakes.png';
+const catalogStep = (item: CatalogItem) => ({ name: shortName(item), unit: item.unit, stepBy: step(item), first: firstAdd(item) });
+// Ready-to-go items sell by one (kg by half) and never past the stock on the shelf.
+const showcaseStep = (item: PublicShowcaseItem) => ({ name: item.name, unit: item.unit, stepBy: item.unit === 'kg' ? 0.5 : 1, first: Math.min(1, item.stock), max: item.stock });
+const showcasePhoto = (item: PublicShowcaseItem) => showcasePhotoUrl(String(import.meta.env.VITE_SUPABASE_URL ?? ''), item.photoPath);
+const stockText = (item: PublicShowcaseItem) => `${qtyText(item.stock)} ${item.stock === 1 ? 'disponível' : 'disponíveis'}`;
 
 function Icon({ name }: { name: 'plus' | 'minus' | 'box' | 'back' | 'check' | 'chat' }) {
   const paths = {
@@ -37,25 +45,27 @@ function Icon({ name }: { name: 'plus' | 'minus' | 'box' | 'back' | 'check' | 'c
   return <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={paths[name]} /></svg>;
 }
 
-function Stepper({ item, value, onChange }: { item: CatalogItem; value: number; onChange: (next: number) => void }) {
+type StepProps = { name: string; unit: OrderLine['unit']; stepBy: number; first: number; max?: number };
+function Stepper({ name, unit, stepBy, first, max = 1000, value, onChange }: StepProps & { value: number; onChange: (next: number) => void }) {
   const [draft, setDraft] = useState<string | null>(null);
-  const name = shortName(item);
-  if (!value) return <button type="button" className="po-add" onClick={() => onChange(firstAdd(item))} aria-label={`Adicionar ${name}`}><Icon name="plus" />Adicionar</button>;
+  const round = (next: number) => unit === 'kg' ? Math.round(next * 1000) / 1000 : Math.round(next);
+  if (!value) return <button type="button" className="po-add" onClick={() => onChange(Math.min(first, max))} aria-label={`Adicionar ${name}`}><Icon name="plus" />Adicionar</button>;
   return <div className="po-stepper" role="group" aria-label={`Quantidade de ${name}`}>
-    <button type="button" onClick={() => onChange(Math.max(0, Math.round((value - step(item)) * 1000) / 1000))} aria-label={value - step(item) <= 0 ? `Remover ${name}` : `Diminuir ${name}`}><Icon name="minus" /></button>
-    <label><span className="sr-only">Quantidade de {name} em {unitShort[item.unit]}</span>
+    <button type="button" onClick={() => onChange(Math.max(0, Math.round((value - stepBy) * 1000) / 1000))} aria-label={value - stepBy <= 0 ? `Remover ${name}` : `Diminuir ${name}`}><Icon name="minus" /></button>
+    <label><span className="sr-only">Quantidade de {name} em {unitShort[unit]}</span>
       <input inputMode="decimal" value={draft ?? qtyText(value)} onFocus={event => { setDraft(qtyText(value)); event.target.select(); }}
         onChange={event => { if (/^\d{0,4}(?:[,.]\d{0,3})?$/.test(event.target.value)) setDraft(event.target.value); }}
-        onBlur={() => { const next = parseQty(draft ?? ''); setDraft(null); if (Number.isFinite(next) && next >= 0 && next <= 1000) onChange(item.unit === 'kg' ? Math.round(next * 1000) / 1000 : Math.round(next)); }}
+        onBlur={() => { const next = parseQty(draft ?? ''); setDraft(null); if (Number.isFinite(next) && next >= 0 && next <= 1000) onChange(Math.min(round(next), max)); }}
         onKeyDown={event => { if (event.key === 'Enter') (event.target as HTMLInputElement).blur(); }} />
-      <span aria-hidden="true">{unitShort[item.unit]}</span></label>
-    <button type="button" onClick={() => onChange(Math.min(1000, Math.round((value + step(item)) * 1000) / 1000))} aria-label={`Aumentar ${name}`}><Icon name="plus" /></button>
+      <span aria-hidden="true">{unitShort[unit]}</span></label>
+    <button type="button" disabled={value >= max} onClick={() => onChange(Math.min(max, Math.round((value + stepBy) * 1000) / 1000))} aria-label={`Aumentar ${name}`}><Icon name="plus" /></button>
   </div>;
 }
 
-function Thumb({ item }: { item?: CatalogItem }) {
+function Thumb({ item, src }: { item?: CatalogItem; src?: string }) {
   // Items without their own photo wear the shop's badge rather than an initial that reads like a glitch.
-  if (item) return <img className="po-thumb" src={item.photo ?? '/brand/saint-cakes.png'} alt="" />;
+  if (src) return <img className="po-thumb" src={src} alt="" />;
+  if (item) return <img className="po-thumb" src={item.photo ?? BADGE} alt="" />;
   return <span className="po-thumb po-thumb-mark" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M4 20h4L19 9l-4-4L4 16v4ZM13.5 6.5l4 4" /></svg></span>;
 }
 
@@ -78,6 +88,20 @@ export default function PublicOrder({ client }: { client: SupabaseClient | null 
   const [sending, setSending] = useState(false);
   const [sent, setSent] = useState(false);
   const [active, setActive] = useState('bolos');
+  const [marketing, setMarketing] = useState(false);
+  const [showcase, setShowcase] = useState<PublicShowcaseItem[]>([]);
+  const [showcaseError, setShowcaseError] = useState('');
+  const [showcaseBusy, setShowcaseBusy] = useState(false);
+  const [showcaseNeedsRefresh, setShowcaseNeedsRefresh] = useState(false);
+  const showcaseToken = useRef(0);
+  const [picks, setPicks] = useState<Record<string, number>>({});
+  const [coupon, setCoupon] = useState<{ code: string; discountCents: number } | null>(null);
+  const [couponInput, setCouponInput] = useState('');
+  const [couponNote, setCouponNote] = useState('');
+  const [couponBusy, setCouponBusy] = useState(false);
+  const [discount, setDiscount] = useState(0);
+  const couponToken = useRef(0);
+  const couponChecked = useRef('');
   const errorRef = useRef<HTMLParagraphElement>(null);
   // Defaults match the catalogue rule; the server applies the owner's current values regardless.
   const [shop, setShop] = useState<PublicSettings>({ minLeadDays: 2, deliveryZones: [] });
@@ -88,6 +112,21 @@ export default function PublicOrder({ client }: { client: SupabaseClient | null 
     rpc(client, 'public_settings').then(value => { if (alive) setShop(parsePublicSettings(value)); }).catch(() => { /* Keep defaults. */ });
     return () => { alive = false; };
   }, [client]);
+  // The showcase is optional: a failed call just hides the section. Picks are clamped to what is still on the shelf.
+  function loadShowcase() {
+    if (!client) return;
+    const token = ++showcaseToken.current;
+    setShowcaseBusy(true);
+    rpc(client, 'public_showcase').then(value => {
+      if (token !== showcaseToken.current) return;
+      const items = (Array.isArray(value) ? value : []).flatMap(raw => { try { const item = parsePublicShowcaseItem(raw); return item.stock > 0 ? [item] : []; } catch { return []; } });
+      setShowcase(items);
+      setPicks(current => Object.fromEntries(Object.entries(current).flatMap(([id, quantity]) => { const item = items.find(entry => entry.id === id); return item ? [[id, Math.min(quantity, item.stock)]] : []; })));
+      setShowcaseError(''); setShowcaseNeedsRefresh(false);
+    }).catch(() => { if (token === showcaseToken.current) setShowcaseError('Não foi possível atualizar a pronta entrega. Sua seleção foi mantida.'); })
+      .finally(() => { if (token === showcaseToken.current) setShowcaseBusy(false); });
+  }
+  useEffect(() => { loadShowcase(); return () => { showcaseToken.current++; }; }, [client]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (view !== 'shop' || !('IntersectionObserver' in window)) return;
     const observer = new IntersectionObserver(entries => {
@@ -96,21 +135,70 @@ export default function PublicOrder({ client }: { client: SupabaseClient | null 
     }, { rootMargin: '-30% 0px -60% 0px' });
     document.querySelectorAll('.po-section').forEach(section => observer.observe(section));
     return () => observer.disconnect();
-  }, [view]);
+  }, [view, showcase.length]);
   const fee = fulfillment === 'delivery' ? shop.deliveryZones.find(item => item.name === zone) : undefined;
 
   // The box lists items in the order the visitor picked them, so the phone bar shows the newest.
   const chosen = useMemo(() => added.map(id => catalog.find(item => item.id === id)).filter((item): item is CatalogItem => !!item && quantities[item.id] > 0), [added, quantities]);
+  const pickedShowcase = useMemo(() => showcase.filter(item => picks[item.id] > 0), [showcase, picks]);
+  const showcaseLines = useMemo<RequestLine[]>(() => pickedShowcase.map(item => ({ description: item.name, quantity: picks[item.id], unit: item.unit, unitPriceCents: item.priceCents })), [pickedShowcase, picks]);
   const lines = useMemo<RequestLine[]>(() => [
     ...chosen.map(item => ({ description: item.description, quantity: quantities[item.id], unit: item.unit, unitPriceCents: item.unitPriceCents })),
     ...custom.filter(line => line.description.trim()).map(line => ({ description: `${line.description.trim()} · sob orçamento`.slice(0, 180), quantity: parseQty(line.quantity), unit: line.unit, unitPriceCents: 0 })),
   ], [chosen, quantities, custom]);
   // The fee line is shown here but added by the server from the owner's table, never sent by the browser.
-  const shown = useMemo(() => fee?.feeCents ? [...lines, { description: `Frete · ${fee.name}`, quantity: 1, unit: 'un' as const, unitPriceCents: fee.feeCents }] : lines, [lines, fee]);
-  const money = useMemo(() => { try { return estimate(shown); } catch { return null; } }, [shown]);
+  const boxLines = useMemo(() => [...showcaseLines, ...lines], [showcaseLines, lines]);
+  const shown = useMemo(() => fee?.feeCents ? [...boxLines, { description: `Frete · ${fee.name}`, quantity: 1, unit: 'un' as const, unitPriceCents: fee.feeCents }] : boxLines, [boxLines, fee]);
+  const gross = useMemo(() => { try { return estimate(shown); } catch { return null; } }, [shown]);
+  // What a coupon applies to: priced catalogue and showcase lines, never quoted items or the delivery fee.
+  const subtotalCents = useMemo(() => { try { return estimate(boxLines).totalCents; } catch { return 0; } }, [boxLines]);
+  const money = useMemo(() => {
+    if (!gross || !coupon) return gross;
+    const totalCents = Math.max(0, gross.totalCents - coupon.discountCents);
+    return { ...gross, totalCents, depositCents: Math.ceil(totalCents / 2) };
+  }, [gross, coupon]);
   const quoted = lines.some(line => line.unitPriceCents === 0);
   const minDate = quoted ? addDays(today, shop.minLeadDays) : today;
-  const count = lines.length;
+  const count = boxLines.length;
+  const phoneDigits = phone.replace(/\D/g, '').length;
+  const couponCode = coupon?.code ?? '';
+  useEffect(() => { couponToken.current++; setCouponBusy(false); }, [phone, subtotalCents]);
+
+  async function askCoupon(code: string) {
+    return parseCouponQuote(await rpc(client as SupabaseClient, 'check_coupon', { p_code: code, p_phone: phone, p_subtotal_cents: subtotalCents }));
+  }
+  async function applyCoupon() {
+    const code = couponInput.trim();
+    if (!code) return setCouponNote('Digite o código do cupom.');
+    if (phoneDigits < 10) return setCouponNote('Preencha seu WhatsApp com DDD antes de aplicar o cupom.');
+    if (!subtotalCents) return setCouponNote('Adicione itens com preço para usar um cupom.');
+    if (!client) return setCouponNote('Não foi possível conferir o cupom agora. Tente novamente.');
+    const token = ++couponToken.current;
+    setCouponBusy(true); setCouponNote('');
+    try {
+      const quote = await askCoupon(code);
+      if (token !== couponToken.current) return;
+      couponChecked.current = `${quote.code}|${phone}|${subtotalCents}`;
+      setCoupon({ code: quote.code, discountCents: quote.discountCents }); setCouponInput('');
+    } catch (failure) { if (token === couponToken.current) setCouponNote(couponMessage(failure)); }
+    finally { setCouponBusy(false); }
+  }
+  // A coupon depends on the phone (first order) and the subtotal: confirm again, after a pause, when either changes.
+  useEffect(() => {
+    if (!couponCode || !client || couponChecked.current === `${couponCode}|${phone}|${subtotalCents}`) return;
+    const timer = window.setTimeout(() => {
+      const token = ++couponToken.current;
+      const drop = (note: string) => { setCoupon(null); setCouponNote(note); };
+      if (phoneDigits < 10) return drop('Informe seu WhatsApp com DDD para conferir o cupom.');
+      if (!subtotalCents) return drop('O cupom saiu porque a caixa não tem itens com preço.');
+      askCoupon(couponCode).then(quote => {
+        if (token !== couponToken.current) return;
+        couponChecked.current = `${couponCode}|${phone}|${subtotalCents}`;
+        setCoupon(current => current && current.code === couponCode ? { code: current.code, discountCents: quote.discountCents } : current);
+      }).catch(failure => { if (token === couponToken.current) drop(couponMessage(failure)); });
+    }, 700);
+    return () => { window.clearTimeout(timer); couponToken.current++; };
+  }, [couponCode, phone, subtotalCents, client]); // eslint-disable-line react-hooks/exhaustive-deps
 
   function setQuantity(item: CatalogItem, next: number) {
     setQuantities(current => ({ ...current, [item.id]: next }));
@@ -118,41 +206,56 @@ export default function PublicOrder({ client }: { client: SupabaseClient | null 
     if (next > (quantities[item.id] ?? 0)) { setRecent(item.id); window.setTimeout(() => setRecent(current => current === item.id ? null : current), 700); }
     setError('');
   }
+  function setPick(item: PublicShowcaseItem, next: number) {
+    const quantity = Math.min(next, item.stock);
+    if (quantity > (picks[item.id] ?? 0)) { setRecent(item.id); window.setTimeout(() => setRecent(current => current === item.id ? null : current), 700); }
+    setPicks(current => ({ ...current, [item.id]: quantity }));
+    setError('');
+  }
   function fail(message: string) { setError(message); requestAnimationFrame(() => errorRef.current?.focus()); }
   function openCheckout() { if (!count) return; setView('checkout'); setError(''); window.scrollTo({ top: 0 }); }
   async function submit(event: FormEvent) {
     event.preventDefault();
     if (sending) return;
-    const input: OrderRequestInput = { customer, phone, date, time, fulfillment, address: fulfillment === 'delivery' ? address : '', deliveryZone: fulfillment === 'delivery' ? zone : '', notes, lines };
+    if (showcaseNeedsRefresh || showcaseBusy) return fail('Atualize a pronta entrega e confira sua caixa antes de enviar.');
+    const input: OrderRequestInput = { customer, phone, date, time, fulfillment, address: fulfillment === 'delivery' ? address : '', deliveryZone: fulfillment === 'delivery' ? zone : '', notes, lines,
+      showcase: pickedShowcase.map(item => ({ showcaseId: item.id, quantity: picks[item.id] })), ...(coupon ? { couponCode: coupon.code } : {}), marketingOptIn: marketing };
     const problem = requestProblem(input, today, shop);
     if (problem) return fail(problem);
     // Bots fill hidden fields; show the same confirmation without sending anything.
     if (trap) { setSent(true); return; }
     if (!client) return fail('Os pedidos pelo site estão indisponíveis no momento. Chame a Saint Cakes no WhatsApp.');
     setSending(true); setError('');
-    try { await rpc(client, 'submit_order_request', { p_request: input }); setSent(true); window.scrollTo({ top: 0 }); }
-    catch (failure) {
+    try {
+      const result = await rpc(client, 'submit_order_request', { p_request: requestPayload(input) });
+      const cents = typeof result === 'object' && result && 'discountCents' in result ? Number(result.discountCents) : 0;
+      setDiscount(Number.isSafeInteger(cents) && cents > 0 ? cents : 0);
+      setSent(true); window.scrollTo({ top: 0 });
+    } catch (failure) {
       const message = typeof failure === 'object' && failure && 'message' in failure ? String(failure.message) : '';
+      if (message.includes('SHOWCASE_STOCK')) { setShowcaseNeedsRefresh(true); loadShowcase(); return fail('O estoque da pronta entrega mudou. Aguarde a atualização, confira as quantidades da caixa e envie de novo.'); }
+      if (message.includes('COUPON_')) { setCoupon(null); setCouponNote(couponMessage(failure)); return fail(`${couponMessage(failure)} Tiramos o cupom: você pode enviar o pedido sem ele.`); }
       fail(message.includes('REQUEST_LIMIT') ? 'Recebemos muitos pedidos agora. Tente novamente em alguns minutos ou chame a Saint Cakes no WhatsApp.'
         : message.includes('INVALID_REQUEST') ? 'Confira os dados do pedido: data, bairro e WhatsApp com DDD.'
         : 'Não foi possível enviar. Confira a conexão e tente novamente.');
     } finally { setSending(false); }
   }
-  function restart() { setQuantities({}); setAdded([]); setCustom([]); setNotes(''); setSent(false); setError(''); setView('shop'); }
+  function restart() { setQuantities({}); setAdded([]); setCustom([]); setPicks({}); setCoupon(null); setCouponInput(''); setCouponNote(''); setDiscount(0); setNotes(''); loadShowcase(); setSent(false); setError(''); setView('shop'); }
 
-  const header = <header className="po-band"><div className="po-band-inner"><img src="/brand/saint-cakes.png" alt="Saint Cakes" width="56" height="56" /><span>Encomendas Saint Cakes</span></div></header>;
+  const header = <><header className="po-band"><div className="po-band-inner"><img src="/brand/saint-cakes.png" alt="Saint Cakes" width="56" height="56" /><span>Encomendas Saint Cakes</span></div></header>{showcaseError && <div role="alert" className="po-error">{showcaseError} <button type="button" className="po-link" disabled={showcaseBusy} onClick={loadShowcase}>{showcaseBusy ? 'Atualizando…' : 'Atualizar pronta entrega'}</button></div>}</>;
 
   if (sent) return <div className="po">{header}<main className="po-done">
     <span className="po-done-mark"><Icon name="check" /></span>
     <h1>Pedido enviado</h1>
     <p>Obrigado{customer.trim() ? `, ${customer.trim().split(/\s+/)[0]}` : ''}. A equipe vai conferir sua caixa e chamar você no WhatsApp para confirmar valores, detalhes e o sinal de 50%.</p>
+    {discount > 0 && <p className="po-done-discount">Cupom aplicado: desconto de {formatMoney(discount)}. O valor final e o sinal serão confirmados no WhatsApp.</p>}
     <p className="po-muted">A encomenda fica garantida depois dessa confirmação.</p>
     <button type="button" className="po-primary" onClick={restart}>Montar outra caixa</button>
   </main></div>;
 
   const boxSummary = <>
     <div className="po-box-thumbs" aria-hidden="true">
-      {chosen.slice(-4).map(item => <span key={item.id} className={recent === item.id ? 'po-pop' : ''}><Thumb item={item} /></span>)}
+      {[...chosen.map(item => ({ id: item.id, thumb: <Thumb item={item} /> })), ...pickedShowcase.map(item => ({ id: item.id, thumb: <Thumb src={showcasePhoto(item) ?? BADGE} /> }))].slice(-4).map(entry => <span key={entry.id} className={recent === entry.id ? 'po-pop' : ''}>{entry.thumb}</span>)}
       {custom.some(line => line.description.trim()) && <span><Thumb /></span>}
     </div>
     <div className="po-box-text"><strong>{count ? <><span className="po-box-label">Sua caixa · </span>{count} {count === 1 ? 'item' : 'itens'}</> : 'Sua caixa está vazia'}</strong>
@@ -168,7 +271,8 @@ export default function PublicOrder({ client }: { client: SupabaseClient | null 
           <section aria-labelledby="po-box-title" className="po-panel">
             <h2 id="po-box-title">Sua caixa</h2>
             <ul className="po-review">
-              {chosen.map(item => <li key={item.id}><Thumb item={item} /><div><strong>{shortName(item)}</strong><span>{formatMoney(item.unitPriceCents)}/{unitShort[item.unit]}</span></div><Stepper item={item} value={quantities[item.id]} onChange={next => setQuantity(item, next)} /></li>)}
+              {pickedShowcase.map(item => <li key={item.id}><Thumb src={showcasePhoto(item) ?? BADGE} /><div><strong>{item.name}</strong><span>{formatMoney(item.priceCents)}/{unitShort[item.unit]} · pronta entrega</span></div><Stepper {...showcaseStep(item)} value={picks[item.id]} onChange={next => setPick(item, next)} /></li>)}
+              {chosen.map(item => <li key={item.id}><Thumb item={item} /><div><strong>{shortName(item)}</strong><span>{formatMoney(item.unitPriceCents)}/{unitShort[item.unit]}</span></div><Stepper {...catalogStep(item)} value={quantities[item.id]} onChange={next => setQuantity(item, next)} /></li>)}
               {custom.filter(line => line.description.trim()).map(line => <li key={line.key}><Thumb /><div><strong>{line.description.trim()}</strong><span>{line.quantity} {unitShort[line.unit]} · sob orçamento</span></div><button type="button" className="po-link" onClick={() => setCustom(current => current.filter(item => item.key !== line.key))}>Remover</button></li>)}
             </ul>
             {!count && <p className="po-muted">Sua caixa ficou vazia. <button type="button" className="po-link" onClick={() => setView('shop')}>Voltar aos produtos</button></p>}
@@ -193,6 +297,7 @@ export default function PublicOrder({ client }: { client: SupabaseClient | null 
               <label className="po-field">WhatsApp com DDD<input type="tel" autoComplete="tel" required maxLength={30} placeholder="(47) 99999-9999" value={phone} onChange={event => setPhone(event.target.value)} /></label>
             </div>
             <label className="po-field">Observações<textarea rows={3} maxLength={1000} value={notes} onChange={event => setNotes(event.target.value)} placeholder="Nome no bolo, decoração, alergias…" /></label>
+            <label className="po-check"><input type="checkbox" checked={marketing} onChange={event => setMarketing(event.target.checked)} /><span>Quero receber novidades e promoções da Saint Cakes pelo WhatsApp.</span></label>
             <label className="po-trap" aria-hidden="true">Site<input tabIndex={-1} autoComplete="off" value={trap} onChange={event => setTrap(event.target.value)} /></label>
           </section>
         </div>
@@ -200,18 +305,27 @@ export default function PublicOrder({ client }: { client: SupabaseClient | null 
           <dl>
             {shown.map((line, index) => <div key={index}><dt>{qtyText(line.quantity)} {unitShort[line.unit]} · {line.description.replace(' · linha party', '').replace(/^Bolo /, '')}</dt><dd>{line.unitPriceCents ? formatMoney(estimate([line]).totalCents) : 'a orçar'}</dd></div>)}
           </dl>
+          <div className="po-coupon">
+            {coupon ? <div className="po-coupon-on"><p className="po-coupon-ok" role="status">Cupom {coupon.code}: − {formatMoney(coupon.discountCents)}</p><button type="button" className="po-link" onClick={() => { couponToken.current++; setCoupon(null); setCouponNote(''); }}>Remover cupom</button></div>
+              : <div className="po-field"><label htmlFor="po-coupon-input">Tenho um cupom</label>
+                <div className="po-coupon-row"><input id="po-coupon-input" autoComplete="off" autoCapitalize="characters" maxLength={24} value={couponInput} onChange={event => { setCouponInput(event.target.value); setCouponNote(''); }}
+                  onKeyDown={event => { if (event.key === 'Enter') { event.preventDefault(); void applyCoupon(); } }} />
+                  <button type="button" className="po-ghost" disabled={couponBusy || !couponInput.trim()} onClick={() => void applyCoupon()}>{couponBusy ? 'Conferindo…' : 'Aplicar'}</button></div>
+                {phoneDigits < 10 && <small>Preencha o WhatsApp em Seus dados para aplicar.</small>}</div>}
+            {couponNote && <p className="po-coupon-err" role="status">{couponNote}</p>}
+          </div>
           <div className="po-total-sum"><span>Total estimado</span><strong>{money && money.totalCents > 0 ? formatMoney(money.totalCents) : '—'}{money?.quoted && money.totalCents > 0 ? ' + orçamento' : ''}</strong></div>
           <div className="po-total-deposit"><span>Sinal de 50% para confirmar</span><strong>{money && money.depositCents > 0 ? formatMoney(money.depositCents) : '—'}</strong></div>
           <p className="po-muted">Valores do catálogo. Frete de bairros fora da lista, personalizados e o valor final são confirmados pela equipe no WhatsApp.</p>
           {error && <p ref={errorRef} tabIndex={-1} role="alert" className="po-error">{error}</p>}
-          <button className="po-primary po-total-send" disabled={sending || !count}><Icon name="chat" />{sending ? 'Enviando…' : 'Enviar pedido'}</button>
+          <button className="po-primary po-total-send" disabled={sending || !count || showcaseNeedsRefresh || showcaseBusy}><Icon name="chat" />{sending ? 'Enviando…' : 'Enviar pedido'}</button>
         </aside>
       </div>
       {/* Phones keep the total and deposit in view for the whole form, as the shop's box bar does. */}
       <div className="po-checkout-bar">
         <div><strong>{money && money.totalCents > 0 ? formatMoney(money.totalCents) : 'Sob orçamento'}{money?.quoted && money.totalCents > 0 ? ' + orçamento' : ''}</strong>
           <span>{money && money.depositCents > 0 ? `Sinal de 50%: ${formatMoney(money.depositCents)}` : 'A equipe confirma o valor'}</span></div>
-        <button className="po-primary" disabled={sending || !count}><Icon name="chat" />{sending ? 'Enviando…' : 'Enviar pedido'}</button>
+        <button className="po-primary" disabled={sending || !count || showcaseNeedsRefresh || showcaseBusy}><Icon name="chat" />{sending ? 'Enviando…' : 'Enviar pedido'}</button>
       </div>
     </form>
   </div>;
@@ -227,10 +341,22 @@ export default function PublicOrder({ client }: { client: SupabaseClient | null 
         <img className="po-hero-photo" src="/products/hero-bolo.webp" alt="Bolo de chocolate com morangos da Saint Cakes" width="1100" height="1467" fetchPriority="high" />
       </section>
       <nav className="po-tabs" aria-label="Categorias">
-        {[...sections.map(section => ({ id: section.id, title: section.title })), { id: 'sob-medida', title: 'Sob medida' }].map(tab => <a key={tab.id} href={`#${tab.id}`} aria-current={active === tab.id ? 'true' : undefined}>{tab.title}</a>)}
+        {[...(showcase.length ? [{ id: 'pronta-entrega', title: 'Pronta entrega' }] : []), ...sections.map(section => ({ id: section.id, title: section.title })), { id: 'sob-medida', title: 'Sob medida' }].map(tab => <a key={tab.id} href={`#${tab.id}`} aria-current={active === tab.id ? 'true' : undefined}>{tab.title}</a>)}
       </nav>
       <div className="po-layout">
         <div className="po-catalog">
+          {showcase.length > 0 && <section id="pronta-entrega" className="po-section" aria-labelledby="pronta-entrega-title">
+            <div className="po-section-head"><h2 id="pronta-entrega-title">Pronta entrega</h2><p>O que já está pronto agora, com a quantidade disponível.</p></div>
+            <div className="po-featured">
+              {showcase.map(item => <article key={item.id} className={`po-card ${picks[item.id] ? 'is-in' : ''}`}>
+                <img className={showcasePhoto(item) ? '' : 'po-card-badge'} src={showcasePhoto(item) ?? BADGE} alt={showcasePhoto(item) ? item.name : ''} loading="lazy" />
+                <div className="po-card-body"><h3>{item.name}</h3>{item.description && <p>{item.description}</p>}
+                  <p className="po-stock">{stockText(item)}</p>
+                  <div className="po-card-foot"><span className="po-price">{formatMoney(item.priceCents)}<small>/{unitShort[item.unit]}</small></span><Stepper {...showcaseStep(item)} value={picks[item.id] ?? 0} onChange={next => setPick(item, next)} /></div></div>
+              </article>)}
+            </div>
+            <p className="po-showcase-note">Itens prontos: reservamos para você assim que o pedido é enviado.</p>
+          </section>}
           {sections.map(section => {
             const featured = section.items.filter(item => item.photo);
             const rest = section.items.filter(item => !item.photo);
@@ -240,14 +366,14 @@ export default function PublicOrder({ client }: { client: SupabaseClient | null 
                 {featured.map(item => <article key={item.id} className={`po-card ${quantities[item.id] ? 'is-in' : ''}`}>
                   <img src={item.photo} alt={shortName(item)} loading="lazy" />
                   <div className="po-card-body"><h3>{shortName(item)}</h3>{item.details && <p>{item.details}</p>}
-                    <div className="po-card-foot"><span className="po-price">{formatMoney(item.unitPriceCents)}<small>/{unitShort[item.unit]}</small></span><Stepper item={item} value={quantities[item.id] ?? 0} onChange={next => setQuantity(item, next)} /></div></div>
+                    <div className="po-card-foot"><span className="po-price">{formatMoney(item.unitPriceCents)}<small>/{unitShort[item.unit]}</small></span><Stepper {...catalogStep(item)} value={quantities[item.id] ?? 0} onChange={next => setQuantity(item, next)} /></div></div>
                 </article>)}
               </div>
               <ul className="po-menu">
                 {rest.map(item => <li key={item.id} className={quantities[item.id] ? 'is-in' : ''}>
                   <div><h3>{shortName(item)}</h3>{item.details && <p>{item.details}</p>}</div>
                   <span className="po-price">{formatMoney(item.unitPriceCents)}<small>/{unitShort[item.unit]}</small></span>
-                  <Stepper item={item} value={quantities[item.id] ?? 0} onChange={next => setQuantity(item, next)} />
+                  <Stepper {...catalogStep(item)} value={quantities[item.id] ?? 0} onChange={next => setQuantity(item, next)} />
                 </li>)}
               </ul>
             </section>;
@@ -261,13 +387,13 @@ export default function PublicOrder({ client }: { client: SupabaseClient | null 
                 <label className="po-field">Unidade<select value={line.unit} onChange={event => setCustom(current => current.map(item => item.key === line.key ? { ...item, unit: event.target.value as OrderLine['unit'] } : item))}><option value="un">un</option><option value="kg">kg</option><option value="cento">cento</option></select></label>
                 <button type="button" className="po-link" onClick={() => setCustom(current => current.filter(item => item.key !== line.key))}>Remover</button>
               </div>)}
-              <button type="button" className="po-ghost" disabled={lines.length >= MAX_REQUEST_LINES} onClick={() => setCustom(current => [...current, { key: crypto.randomUUID(), description: '', quantity: '1', unit: 'un' }])}><Icon name="plus" />Pedir algo sob medida</button>
+              <button type="button" className="po-ghost" disabled={count >= MAX_REQUEST_LINES} onClick={() => setCustom(current => [...current, { key: crypto.randomUUID(), description: '', quantity: '1', unit: 'un' }])}><Icon name="plus" />Pedir algo sob medida</button>
             </div>
           </section>
         </div>
         <aside className="po-box" aria-label="Sua caixa">
           <div className="po-box-summary">{boxSummary}</div>
-          {count > 0 && <ul className="po-box-lines">{lines.map((line, index) => <li key={index}><span>{qtyText(line.quantity)} {unitShort[line.unit]}</span>{line.description.replace(' · linha party', '').replace(/^Bolo /, '')}</li>)}</ul>}
+          {count > 0 && <ul className="po-box-lines">{boxLines.map((line, index) => <li key={index}><span>{qtyText(line.quantity)} {unitShort[line.unit]}</span>{line.description.replace(' · linha party', '').replace(/^Bolo /, '')}</li>)}</ul>}
           {count > 0 && money && money.depositCents > 0 && <p className="po-box-deposit">Sinal de 50%: {formatMoney(money.depositCents)}</p>}
           <button type="button" className="po-primary" disabled={!count} onClick={openCheckout}><Icon name="box" />Fechar pedido</button>
         </aside>

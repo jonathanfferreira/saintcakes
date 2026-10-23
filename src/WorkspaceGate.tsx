@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import type { Session, SupabaseClient } from '@supabase/supabase-js';
 import App from './App';
@@ -10,6 +10,8 @@ import { parseRequestRecord } from './requests';
 import type { OrderRequestRecord } from './requests';
 import type { Order, OrderStatus } from './domain';
 import { parseSettings } from './settings';
+import { SHOWCASE_BUCKET, showcasePhotoUrl } from './growth';
+import type { GrowthApi } from './growth';
 import type { ShopSettings } from './settings';
 import { announceRequests } from './alerts';
 
@@ -131,8 +133,9 @@ export default function WorkspaceGate({ client }: { client: SupabaseClient }) {
       throw new Error(errorMessage(failure));
     } finally { if (generation.current === token) { lock.current = false; setBusy(false); } }
   }
-  async function save(order: Order, revision: number | null): Promise<Order> {
-    return (await mutate('save_order', { p_order: { ...order, number: order.number || 1 }, p_expected_revision: revision }, true) as OrderRecord).order;
+  async function save(order: Order, revision: number | null, requestId?: string): Promise<Order> {
+    const p_order = { ...order, number: order.number || 1 };
+    return (await mutate(requestId ? 'convert_order_request' : 'save_order', requestId ? { p_id: requestId, p_order } : { p_order, p_expected_revision: revision }, true) as OrderRecord).order;
   }
   async function updateStatus(order: Order, revision: number, status: OrderStatus) {
     await mutate('set_order_status', { p_id: order.id, p_status: status, p_expected_revision: revision }, true);
@@ -146,6 +149,16 @@ export default function WorkspaceGate({ client }: { client: SupabaseClient }) {
     try { setSettings(parseSettings(await rpc(client, 'save_settings', { p_settings: next }))); }
     catch (failure) { throw new Error(errorMessage(failure)); }
   }
+  const growth: GrowthApi = useMemo(() => ({
+    call: (name, args) => rpc(client, name, args),
+    uploadPhoto: async (file, extension) => {
+      const path = `showcase/${crypto.randomUUID()}.${extension}`;
+      const { error } = await client.storage.from(SHOWCASE_BUCKET).upload(path, file, { contentType: file.type || `image/${extension === 'jpg' ? 'jpeg' : extension}`, upsert: false });
+      if (error) throw error;
+      return path;
+    },
+    photoUrl: path => showcasePhotoUrl(import.meta.env.VITE_SUPABASE_URL ?? '', path),
+  }), [client]);
   async function login(event: FormEvent) {
     event.preventDefault(); if (authBusy) return;
     closing.current = false; setAuthBusy(true); setAuthError(''); setExitFailed(false);
@@ -168,6 +181,6 @@ export default function WorkspaceGate({ client }: { client: SupabaseClient }) {
   const account = staff ? { name: staff.displayName, detail: `${roleLabels[staff.role]} · ${staff.canViewFinancial ? 'consulta valores' : 'produção'}`, sync, busy: busy || syncing || authBusy || exitFailed, loggingOut: authBusy, onRefresh: () => void refresh(), onLogout: () => void logout(), team: staff.role === 'owner' ? <TeamAccess client={client} staff={staff} onChange={refresh} /> : undefined } : null;
   const alerts = <>{authError && <p role="alert" className="sc-alert sc-gate-alert">{authError}</p>}{syncError && <p role="alert" className="sc-alert sc-gate-alert shared-sync-error">{syncError}</p>}</>;
   // People with financial access get the full app, whose shell carries the account controls.
-  if (staff?.canViewFinancial && account) return <>{alerts}<div key={viewKey}><App account={account} shared={{ staff, records, requests, settings, busy, syncError, lastSynced, save, updateStatus, resolveRequest, saveSettings, refresh }} /></div></>;
+  if (staff?.canViewFinancial && account) return <>{alerts}<div key={viewKey}><App account={account} shared={{ staff, records, requests, settings, busy, syncError, lastSynced, save, updateStatus, resolveRequest, saveSettings, growth, refresh }} /></div></>;
   return <><div className="sc-account-bar"><img src="/brand/saint-cakes.png" alt="" width="36" height="36" /><div><strong>{staff?.displayName ?? 'Conta da equipe'}</strong><small aria-live="polite">{staff ? `${roleLabels[staff.role]} · ${sync}` : sync}</small></div><button type="button" className="sc-btn sc-btn-secondary" onClick={() => void refresh()} disabled={busy || syncing || authBusy || exitFailed}>Atualizar</button><button type="button" className="sc-btn sc-btn-quiet" onClick={() => void logout()} disabled={authBusy}>{authBusy ? 'Saindo…' : 'Sair'}</button></div>{alerts}{!staff ? <main className="shared-blocked"><h1>Acesso da equipe</h1><p>{busy || syncing ? 'Carregando permissões…' : 'Não foi possível carregar seu acesso. Use Atualizar para tentar novamente ou solicite a revisão da sua conta.'}</p></main> : <div key={viewKey}><ProductionWorkspace records={production} busy={busy} updateStatus={async (record, status) => { await mutate('set_order_status', { p_id: record.order.id, p_status: status, p_expected_revision: record.revision }, false); }} /></div>}</>;
 }

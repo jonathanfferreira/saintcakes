@@ -1,4 +1,4 @@
-import { addDays, calculateOrder } from './domain.ts';
+import { addDays, calculateOrder, orderMoney } from './domain.ts';
 import type { Order } from './domain';
 
 // Orders count toward the month of their civil delivery date. Cancelled orders never count as revenue.
@@ -9,7 +9,7 @@ export function monthSummary(orders: Order[], month: string): MonthSummary {
   const inMonth = orders.filter(order => order.date.startsWith(`${month}-`));
   const valid = inMonth.filter(live);
   let totalCents = 0, receivedCents = 0;
-  for (const order of valid) { totalCents += calculateOrder(order.lines, order.receivedCents).totalCents; receivedCents += order.receivedCents; }
+  for (const order of valid) { totalCents += orderMoney(order).totalCents; receivedCents += order.receivedCents; }
   return {
     count: valid.length, cancelled: inMonth.length - valid.length, totalCents, receivedCents, balanceCents: totalCents - receivedCents,
     averageCents: valid.length ? Math.round(totalCents / valid.length) : 0,
@@ -34,7 +34,7 @@ export function revenueByMonth(orders: Order[], lastMonth: string, months = 6): 
 /** Upcoming live orders whose 50% deposit is still not noted, soonest first. */
 export function pendingDeposits(orders: Order[], today: string) {
   return orders.filter(order => live(order) && order.status !== 'delivered' && order.date >= today)
-    .map(order => ({ order, ...calculateOrder(order.lines, order.receivedCents) }))
+    .map(order => ({ order, ...orderMoney(order) }))
     .filter(item => item.depositDueCents > 0)
     .sort((a, b) => `${a.order.date}${a.order.time}`.localeCompare(`${b.order.date}${b.order.time}`));
 }
@@ -42,7 +42,7 @@ export function pendingDeposits(orders: Order[], today: string) {
 /** Delivered or past orders that still have a balance to collect. */
 export function overdueBalances(orders: Order[], today: string) {
   return orders.filter(order => live(order) && (order.status === 'delivered' || order.date < today))
-    .map(order => ({ order, ...calculateOrder(order.lines, order.receivedCents) }))
+    .map(order => ({ order, ...orderMoney(order) }))
     .filter(item => item.balanceCents > 0)
     .sort((a, b) => `${a.order.date}${a.order.time}`.localeCompare(`${b.order.date}${b.order.time}`));
 }
@@ -100,7 +100,7 @@ export function customers(orders: Order[], today: string): Customer[] {
     const sorted = [...list].sort((a, b) => `${a.date}${a.time}`.localeCompare(`${b.date}${b.time}`));
     const valid = sorted.filter(live);
     let totalCents = 0, balanceCents = 0;
-    for (const order of valid) { const money = calculateOrder(order.lines, order.receivedCents); totalCents += money.totalCents; balanceCents += money.balanceCents; }
+    for (const order of valid) { const money = orderMoney(order); totalCents += money.totalCents; balanceCents += money.balanceCents; }
     const latest = sorted[sorted.length - 1];
     const past = valid.filter(order => order.date <= today);
     return {

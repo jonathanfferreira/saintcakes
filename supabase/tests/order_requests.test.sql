@@ -42,9 +42,9 @@ select ok((select bool_and(not prosecdef) from pg_proc where oid in ('public.sub
   'public.read_order_requests()'::regprocedure, 'public.resolve_order_request(uuid,text)'::regprocedure)), 'public endpoints are invokers');
 
 set local role anon;
-select is(public.submit_order_request(pg_temp.request()), '{"received": true}'::jsonb, 'anonymous visitor submits a valid request');
+select is(public.submit_order_request(pg_temp.request()) ->> 'received', 'true', 'anonymous visitor submits a valid request');
 select is(public.submit_order_request(pg_temp.request(jsonb_build_object('phone','(47) 90000-0002',
-  'date', to_char((now() at time zone 'America/Sao_Paulo')::date, 'YYYY-MM-DD')))), '{"received": true}'::jsonb, 'same-day request accepted');
+  'date', to_char((now() at time zone 'America/Sao_Paulo')::date, 'YYYY-MM-DD')))) ->> 'received', 'true', 'same-day request accepted');
 select throws_ok($$select public.submit_order_request(pg_temp.request(jsonb_build_object('date',
   to_char((now() at time zone 'America/Sao_Paulo')::date - 1, 'YYYY-MM-DD'))))$$, 'P0001', 'INVALID_REQUEST', 'past date rejected');
 select throws_ok($$select public.submit_order_request(pg_temp.request(jsonb_build_object('date',

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ChangeEvent, ReactNode } from 'react';
 import OrderForm from './OrderForm';
 import Comanda, { stageLabels } from './Comanda';
-import { addDays as strictAddDays, calculateOrder, formatMoney, localDateKey, validateOrder } from './domain';
+import { addDays as strictAddDays, calculateOrder, formatMoney, localDateKey, orderMoney, validateOrder } from './domain';
 import type { Order, OrderStatus } from './domain';
 import { decode, encode, load, mergeOrders, persist } from './storage';
 import type { SharedMode } from './shared';
@@ -10,6 +10,9 @@ import { estimate, requestToOrder } from './requests';
 import type { OrderRequestRecord } from './requests';
 import type { ShopSettings } from './settings';
 import { Customers, Dashboard } from './Dashboard';
+import CustomersCentral from './CustomersCentral';
+import Coupons from './Coupons';
+import Showcase from './Showcase';
 import ShopSettingsForm from './ShopSettings';
 import { confirmationMessage, defaultSettings, whatsappLink } from './settings';
 import { alertsEnabled, alertsSupported, enableAlerts } from './alerts';
@@ -18,11 +21,11 @@ import { groupOrders, orderGroupLabels } from './metrics';
 /** Signed-in account controls, supplied by WorkspaceGate and drawn inside the app shell. */
 export type AccountControls = { name: string; detail: string; sync: string; busy: boolean; loggingOut: boolean; onRefresh: () => void; onLogout: () => void; team?: ReactNode };
 
-type Page = 'dashboard' | 'orders' | 'production' | 'requests' | 'customers' | 'settings' | 'team' | 'more';
-const labels: Record<Page, string> = { dashboard: 'Painel', orders: 'Encomendas', production: 'Produção', requests: 'Pedidos do site', customers: 'Clientes', settings: 'Loja', team: 'Equipe', more: 'Mais' };
-const shortLabels: Partial<Record<Page, string>> = { requests: 'Site' };
-type IconName = 'calendar' | 'orders' | 'cake' | 'plus' | 'arrow' | 'back' | 'search' | 'inbox' | 'chart' | 'users' | 'store' | 'team' | 'more' | 'refresh' | 'logout' | 'edit' | 'print' | 'chat' | 'pin' | 'clock';
-const pageIcons: Record<Page, IconName> = { dashboard: 'chart', orders: 'orders', production: 'cake', requests: 'inbox', customers: 'users', settings: 'store', team: 'team', more: 'more' };
+type Page = 'dashboard' | 'orders' | 'production' | 'requests' | 'showcase' | 'customers' | 'coupons' | 'settings' | 'team' | 'more';
+const labels: Record<Page, string> = { dashboard: 'Painel', orders: 'Encomendas', production: 'Produção', requests: 'Pedidos do site', showcase: 'Pronta entrega', customers: 'Clientes', coupons: 'Cupons', settings: 'Loja', team: 'Equipe', more: 'Mais' };
+const shortLabels: Partial<Record<Page, string>> = { requests: 'Site', showcase: 'Vitrine' };
+type IconName = 'calendar' | 'orders' | 'cake' | 'plus' | 'arrow' | 'back' | 'search' | 'inbox' | 'chart' | 'users' | 'store' | 'team' | 'more' | 'refresh' | 'logout' | 'edit' | 'print' | 'chat' | 'pin' | 'clock' | 'tag' | 'shelf';
+const pageIcons: Record<Page, IconName> = { dashboard: 'chart', orders: 'orders', production: 'cake', requests: 'inbox', showcase: 'shelf', customers: 'users', coupons: 'tag', settings: 'store', team: 'team', more: 'more' };
 const iconPaths: Record<IconName, string> = {
   calendar: 'M8 2v4m8-4v4M3 10h18M5 4h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z',
   orders: 'M8 3H5v18h14V3h-3M8 2h8v4H8ZM8 11h8m-8 5h5',
@@ -36,6 +39,7 @@ const iconPaths: Record<IconName, string> = {
   edit: 'M4 20h4L19 9l-4-4L4 16v4ZM13.5 6.5l4 4', print: 'M7 9V3h10v6M7 17H5a2 2 0 0 1-2-2v-4a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2h-2M7 14h10v7H7Z',
   chat: 'M20 11.5a8 8 0 0 1-11.7 7.1L4 20l1.4-4.1A8 8 0 1 1 20 11.5Z', pin: 'M12 21s7-6.2 7-12a7 7 0 0 0-14 0c0 5.8 7 12 7 12Zm0-9a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z',
   clock: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18ZM12 7v5l3 2',
+  tag: 'M3 12V4h8l10 10-8 8L3 12ZM7.5 8.5h.01', shelf: 'M3 10h18M3 20h18M5 10V6h5v4M14 10V4h5v6M6 20v-6h4v6M14 20v-6h5v6',
 };
 function Icon({ name, size = 20 }: { name: IconName; size?: number }) {
   return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={name === 'more' ? 3 : 1.7} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={iconPaths[name]} /></svg>;
@@ -60,7 +64,7 @@ function readInitial() {
   catch { return { orders: [] as Order[], raw: null, error: 'O armazenamento está bloqueado neste navegador. Permita dados locais e recarregue para cadastrar pedidos.' }; }
 }
 function depositState(order: Order) {
-  const money = calculateOrder(order.lines, order.receivedCents);
+  const money = orderMoney(order);
   if (order.status === 'cancelled') return { tone: 'muted', text: 'Cancelada' };
   if (money.balanceCents === 0) return { tone: 'leaf', text: 'Pago' };
   if (money.depositDueCents > 0) return { tone: 'amber', text: `Sinal pendente ${formatMoney(money.depositDueCents)}` };
@@ -112,11 +116,10 @@ export default function App({ shared, account }: { shared?: SharedMode; account?
   }
   async function save(order: Order) {
     if (shared) {
-      const saved = await shared.save(order, editRevision.current);
+      const saved = await shared.save(order, editRevision.current, converting.current ?? undefined);
       setEditing(undefined); setPage('orders'); setSelectedId(saved.id);
       setMessage(`Encomenda #${String(saved.number).padStart(3, '0')} salva para a equipe.`);
-      const request = converting.current; converting.current = null;
-      if (request) await shared.resolveRequest(request, 'converted').catch(() => setError('A encomenda foi salva, mas o pedido do site continua na lista. Descarte-o manualmente.'));
+      converting.current = null;
       return;
     }
     if (storageError) throw new Error(storageError);
@@ -182,7 +185,7 @@ export default function App({ shared, account }: { shared?: SharedMode; account?
   }
   const todayOpen = orders.filter(o => o.date === today && o.status !== 'cancelled' && o.status !== 'delivered').length;
 
-  const nav: Page[] = ['dashboard', 'orders', 'production', ...(shared && canEdit ? ['requests' as const] : []), 'customers', ...(isOwner && shared?.settings ? ['settings' as const] : []), ...(account?.team ? ['team' as const] : [])];
+  const nav: Page[] = ['dashboard', 'orders', 'production', ...(shared && canEdit ? ['requests' as const] : []), ...(shared && canEdit ? ['showcase' as const] : []), 'customers', ...(isOwner && shared ? ['coupons' as const] : []), ...(isOwner && shared?.settings ? ['settings' as const] : []), ...(account?.team ? ['team' as const] : [])];
   const tabs: Page[] = ['dashboard', 'orders', 'production', ...(shared && canEdit ? ['requests' as const] : []), 'more'];
   const badge = (p: Page) => p === 'requests' && pendingCount ? pendingCount : p === 'orders' && todayOpen ? todayOpen : 0;
   const current = editing !== undefined ? 'orders' : page;
@@ -198,11 +201,17 @@ export default function App({ shared, account }: { shared?: SharedMode; account?
 
   let content: ReactNode;
   if (editing !== undefined) {
-    content = canEdit ? <OrderForm key={editing?.id ?? 'new'} order={editing} date={today} onSave={save} onCancel={() => { converting.current = null; setEditing(undefined); }} /> : null;
+    content = canEdit ? <OrderForm key={editing?.id ?? 'new'} order={editing} date={today} reservedLineIds={requests.find(item => item.id === converting.current)?.reservedLineIds} onSave={save} onCancel={() => { converting.current = null; setEditing(undefined); }} /> : null;
   } else if (page === 'dashboard') {
     content = <Dashboard orders={orders} today={today} requestCount={shared && canEdit ? requests.length : null} onOpen={openOrder} onRequests={() => navigate('requests')} />;
   } else if (page === 'customers') {
-    content = <Customers orders={orders} today={today} onShowOrders={search => { navigate('orders'); setQuery(search); setStatus('all'); setShowPast(true); }} />;
+    const showOrders = (search: string) => { navigate('orders'); setQuery(search); setStatus('all'); setShowPast(true); };
+    // The persistent central needs the shared database; the local preview keeps the order-derived list.
+    content = shared && canEdit ? <CustomersCentral api={shared.growth} orders={orders} today={today} isOwner={isOwner} onShowOrders={showOrders} /> : <Customers orders={orders} today={today} onShowOrders={showOrders} />;
+  } else if (page === 'showcase' && shared && canEdit) {
+    content = <Showcase api={shared.growth} />;
+  } else if (page === 'coupons' && shared && isOwner) {
+    content = <Coupons api={shared.growth} />;
   } else if (page === 'settings' && shared?.settings) {
     content = <ShopSettingsForm settings={shared.settings} onSave={shared.saveSettings} />;
   } else if (page === 'team' && account?.team) {
@@ -242,7 +251,7 @@ export default function App({ shared, account }: { shared?: SharedMode; account?
         </div>
         {groups.length ? groups.map(group => <section key={group.id} className={`sc-group sc-group-${group.id}`} aria-labelledby={`group-${group.id}`}>
           <h2 id={`group-${group.id}`}>{orderGroupLabels[group.id]}<span className="sc-num">{group.orders.length}</span></h2>
-          <ul>{group.orders.map(order => { const money = calculateOrder(order.lines, order.receivedCents); const pay = depositState(order); return <li key={order.id}>
+          <ul>{group.orders.map(order => { const money = orderMoney(order); const pay = depositState(order); return <li key={order.id}>
             <button type="button" className={`sc-row ${order.id === selectedId ? 'is-selected' : ''} ${order.status === 'cancelled' ? 'is-cancelled' : ''}`} aria-current={order.id === selectedId ? 'true' : undefined} onClick={() => setSelectedId(order.id)}>
               <span className="sc-row-when"><strong className="sc-num">{order.time}</strong><span>{group.id === 'today' ? (order.fulfillment === 'pickup' ? 'Retirada' : 'Entrega') : humanDate(order.date, { weekday: 'short', day: '2-digit', month: 'short' }).replace(/\./g, '')}</span></span>
               <span className="sc-row-main"><span className="sc-row-name">{order.customer}</span><span className="sc-row-items">{order.lines.map(l => `${l.quantity.toLocaleString('pt-BR')} ${l.unit} ${shortLine(l.description)}`).join(' · ')}</span>
@@ -293,7 +302,7 @@ function Empty({ title, text, children }: { title: string; text: string; childre
 }
 
 function OrderDetail({ order, shop, canEdit, busy, statusOptions, onClose, onEdit, onStatus, onPrint }: { order: Order; shop: Pick<ShopSettings, 'pixKey' | 'pixHolder'>; canEdit: boolean; busy: boolean; statusOptions: [OrderStatus, string][]; onClose: () => void; onEdit: () => void; onStatus: (next: OrderStatus) => void; onPrint: () => void }) {
-  const money = calculateOrder(order.lines, order.receivedCents);
+  const money = orderMoney(order);
   const whatsapp = order.status === 'cancelled' ? null : whatsappLink(order.phone, confirmationMessage(order, shop));
   const pay = depositState(order);
   return <aside className="sc-detail" aria-labelledby="detail-title">
@@ -314,6 +323,7 @@ function OrderDetail({ order, shop, canEdit, busy, statusOptions, onClose, onEdi
       <ul className="sc-lines">{order.lines.map(line => <li key={line.id}><span><strong className="sc-num">{line.quantity.toLocaleString('pt-BR')} {line.unit}</strong> {shortLine(line.description)}</span><span className="sc-num">{line.unitPriceCents ? formatMoney(lineCents(line)) : 'a orçar'}</span></li>)}</ul>
     </section>
     <dl className="sc-sums">
+      {money.discountCents > 0 && <><div><dt>Subtotal</dt><dd className="sc-num">{formatMoney(money.subtotalCents)}</dd></div><div><dt>Desconto{order.couponCode ? ` · ${order.couponCode}` : ''}</dt><dd className="sc-num">− {formatMoney(money.discountCents)}</dd></div></>}
       <div><dt>Total</dt><dd className="sc-money">{formatMoney(money.totalCents)}</dd></div>
       <div><dt>Sinal de 50%</dt><dd className="sc-num">{formatMoney(money.depositCents)}</dd></div>
       <div><dt>Recebido (anotado)</dt><dd className="sc-num">{formatMoney(order.receivedCents)}</dd></div>
@@ -325,8 +335,8 @@ function OrderDetail({ order, shop, canEdit, busy, statusOptions, onClose, onEdi
 }
 
 function PrintSheet({ order }: { order: Order }) {
-  const money = calculateOrder(order.lines, order.receivedCents);
-  return <section className="print-sheet"><header><img src="/brand/saint-cakes.png" alt="Saint Cakes" /><div><h1>Ficha de encomenda #{String(order.number).padStart(3, '0')}</h1><p>{humanDate(order.date)} · {order.time} · {order.fulfillment === 'pickup' ? 'Retirada' : 'Entrega'}</p></div></header><h2>{order.customer}</h2>{order.phone && <p>Contato: {order.phone}</p>}{order.fulfillment === 'delivery' && <p>Endereço: {order.address}</p>}<p>Andamento: {stageLabels[order.status]}</p><table><thead><tr><th>Descrição</th><th>Quantidade</th><th>Unitário</th><th>Total</th></tr></thead><tbody>{order.lines.map(l => <tr key={l.id}><td>{l.description}</td><td>{l.quantity.toLocaleString('pt-BR')} {l.unit}</td><td>{formatMoney(l.unitPriceCents)}</td><td>{formatMoney(lineCents(l))}</td></tr>)}</tbody></table><div className="print-totals"><p>Total <strong>{formatMoney(money.totalCents)}</strong></p><p>Sinal previsto (50%) <strong>{formatMoney(money.depositCents)}</strong></p><p>Recebido, anotado manualmente <strong>{formatMoney(order.receivedCents)}</strong></p><p>Saldo a receber <strong>{formatMoney(money.balanceCents)}</strong></p></div>{order.notes && <><h3>Observações</h3><p className="preserve-lines">{order.notes}</p></>}<p className="print-disclaimer">Ficha de organização de encomenda. Valores recebidos anotados manualmente; não é comprovante bancário ou documento fiscal.</p></section>;
+  const money = orderMoney(order);
+  return <section className="print-sheet"><header><img src="/brand/saint-cakes.png" alt="Saint Cakes" /><div><h1>Ficha de encomenda #{String(order.number).padStart(3, '0')}</h1><p>{humanDate(order.date)} · {order.time} · {order.fulfillment === 'pickup' ? 'Retirada' : 'Entrega'}</p></div></header><h2>{order.customer}</h2>{order.phone && <p>Contato: {order.phone}</p>}{order.fulfillment === 'delivery' && <p>Endereço: {order.address}</p>}<p>Andamento: {stageLabels[order.status]}</p><table><thead><tr><th>Descrição</th><th>Quantidade</th><th>Unitário</th><th>Total</th></tr></thead><tbody>{order.lines.map(l => <tr key={l.id}><td>{l.description}</td><td>{l.quantity.toLocaleString('pt-BR')} {l.unit}</td><td>{formatMoney(l.unitPriceCents)}</td><td>{formatMoney(lineCents(l))}</td></tr>)}</tbody></table><div className="print-totals">{money.discountCents > 0 && <><p>Subtotal <strong>{formatMoney(money.subtotalCents)}</strong></p><p>Desconto{order.couponCode ? ` (cupom ${order.couponCode})` : ''} <strong>− {formatMoney(money.discountCents)}</strong></p></>}<p>Total <strong>{formatMoney(money.totalCents)}</strong></p><p>Sinal previsto (50%) <strong>{formatMoney(money.depositCents)}</strong></p><p>Recebido, anotado manualmente <strong>{formatMoney(order.receivedCents)}</strong></p><p>Saldo a receber <strong>{formatMoney(money.balanceCents)}</strong></p></div>{order.notes && <><h3>Observações</h3><p className="preserve-lines">{order.notes}</p></>}<p className="print-disclaimer">Ficha de organização de encomenda. Valores recebidos anotados manualmente; não é comprovante bancário ou documento fiscal.</p></section>;
 }
 
 function RequestInbox({ requests, busy, onConvert, onDismiss }: { requests: OrderRequestRecord[]; busy: boolean; onConvert: (record: OrderRequestRecord) => void; onDismiss: (record: OrderRequestRecord) => Promise<void> }) {
@@ -334,7 +344,7 @@ function RequestInbox({ requests, busy, onConvert, onDismiss }: { requests: Orde
   return <section className="sc-page" aria-labelledby="requests-title">
     <div className="sc-page-head"><div><h1 id="requests-title">Pedidos do site</h1><p>Enviados pelos clientes. Confira, combine pelo WhatsApp e transforme em encomenda.</p></div>{alertsSupported() && (alerts ? <span className="sc-alerts-on">Avisos ativados neste aparelho</span> : <button className="sc-btn sc-btn-secondary" onClick={() => void enableAlerts().then(setAlerts)}>Ativar avisos neste aparelho</button>)}</div>
     {requests.length ? <ul className="sc-requests">{requests.map(record => { const r = record.request; const money = estimate(r.lines); const link = whatsappLink(r.phone); return <li key={record.id} className="sc-card sc-request">
-      <header><div><h2>{r.customer}</h2><p className="sc-num">{humanDate(r.date, { weekday: 'short', day: '2-digit', month: 'short' }).replace(/\./g, '')} · {r.time} · {r.fulfillment === 'pickup' ? 'Retirada' : 'Entrega'}</p></div><span className="sc-money">{money.totalCents ? formatMoney(money.totalCents) : 'A orçar'}{money.quoted && money.totalCents ? <small> + orçamento</small> : null}</span></header>
+      <header><div><h2>{r.customer}</h2><p className="sc-num">{humanDate(r.date, { weekday: 'short', day: '2-digit', month: 'short' }).replace(/\./g, '')} · {r.time} · {r.fulfillment === 'pickup' ? 'Retirada' : 'Entrega'}</p></div><span className="sc-money">{money.totalCents ? formatMoney(Math.max(0, money.totalCents - r.discountCents)) : 'A orçar'}{money.quoted && money.totalCents ? <small> + orçamento</small> : null}{r.discountCents > 0 && <small> cupom {r.couponCode} − {formatMoney(r.discountCents)}</small>}</span></header>
       <ul className="sc-lines">{r.lines.map(line => <li key={line.id}><span><strong className="sc-num">{line.quantity.toLocaleString('pt-BR')} {line.unit}</strong> {shortLine(line.description)}</span><span className="sc-num">{line.unitPriceCents ? formatMoney(estimate([line]).totalCents) : 'a orçar'}</span></li>)}</ul>
       {r.fulfillment === 'delivery' && <p className="sc-request-note"><Icon name="pin" size={16} />{r.address}</p>}{r.notes && <p className="sc-notes">{r.notes}</p>}
       <footer><span className="sc-muted">Recebido em {new Date(record.createdAt).toLocaleString('pt-BR')}</span>

@@ -1,4 +1,4 @@
-import { calculateOrder, formatMoney } from './domain.ts';
+import { calculateOrder, formatMoney, orderMoney } from './domain.ts';
 import type { Order } from './domain';
 
 export type DeliveryZone = { name: string; feeCents: number };
@@ -59,7 +59,7 @@ const weekday = (date: string) => new Intl.DateTimeFormat('pt-BR', { weekday: 'l
 
 /** Ready-to-send WhatsApp confirmation, adapted to what has already been paid. */
 export function confirmationMessage(order: Order, settings: Pick<ShopSettings, 'pixKey' | 'pixHolder'>): string {
-  const money = calculateOrder(order.lines, order.receivedCents);
+  const money = orderMoney(order);
   const first = order.customer.trim().split(/\s+/)[0];
   const lines = order.lines.map(line => `• ${line.quantity.toLocaleString('pt-BR')} ${line.unit} ${line.description}${line.unitPriceCents ? ` — ${formatMoney(calculateOrder([line]).totalCents)}` : ''}`);
   const where = order.fulfillment === 'pickup' ? 'retirada na loja' : `entrega em ${order.address.trim()}`;
@@ -73,6 +73,7 @@ export function confirmationMessage(order: Order, settings: Pick<ShopSettings, '
     `Sua encomenda #${String(order.number).padStart(3, '0')} para ${weekday(order.date)} às ${order.time} (${where}):`,
     ...lines,
     '',
+    ...(money.discountCents ? [`Subtotal: ${formatMoney(money.subtotalCents)}`, `Desconto${order.couponCode ? ` (cupom ${order.couponCode})` : ''}: − ${formatMoney(money.discountCents)}`] : []),
     `Total: ${formatMoney(money.totalCents)}`,
     payment,
   ].join('\n');

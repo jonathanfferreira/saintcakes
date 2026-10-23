@@ -30,6 +30,9 @@ export type Order = {
   receivedCents: number;
   status: OrderStatus;
   createdAt: string;
+  /** Coupon discount; present together with couponCode, absent on orders saved before coupons. */
+  discountCents?: number;
+  couponCode?: string;
 };
 
 const MAX_MONEY_CENTS = 100_000_000;
@@ -59,8 +62,10 @@ function lineTotalCents(line: OrderLine): number {
 export function calculateOrder(
   lines: OrderLine[],
   receivedCents = 0,
-): { totalCents: number; depositCents: number; balanceCents: number; depositDueCents: number } {
+  discountCents = 0,
+): { subtotalCents: number; discountCents: number; totalCents: number; depositCents: number; balanceCents: number; depositDueCents: number } {
   assertMoneyCents(receivedCents, 'O valor recebido');
+  assertMoneyCents(discountCents, 'O desconto');
   if (!Array.isArray(lines)) throw new TypeError('Itens do pedido inválidos.');
   if (lines.length < 1 || lines.length > 100) {
     throw new RangeError('O pedido deve conter de 1 a 100 itens.');
@@ -101,15 +106,26 @@ export function calculateOrder(
     }
   }
   if (totalCents <= 0) throw new RangeError('O total do pedido deve ser maior que zero.');
+  const subtotalCents = totalCents;
+  // A coupon reduces the total but never makes an order free.
+  if (discountCents >= subtotalCents) throw new RangeError('O desconto não pode zerar o pedido.');
+  totalCents = subtotalCents - discountCents;
   if (receivedCents > totalCents) throw new RangeError('O valor recebido não pode superar o total.');
 
   const depositCents = Math.ceil(totalCents / 2);
   return {
+    subtotalCents,
+    discountCents,
     totalCents,
     depositCents,
     balanceCents: totalCents - receivedCents,
     depositDueCents: Math.max(0, depositCents - receivedCents),
   };
+}
+
+/** Money summary of a saved order, including its coupon discount when it has one. */
+export function orderMoney(order: Pick<Order, 'lines' | 'receivedCents' | 'discountCents'>) {
+  return calculateOrder(order.lines, order.receivedCents, order.discountCents ?? 0);
 }
 
 /** Parse a plain Brazilian or dot-decimal amount into integer cents. */
@@ -308,7 +324,14 @@ export function validateOrder(value: unknown): Order {
     if (lines.some((line) => line === null)) throw new TypeError('Um ou mais itens do pedido são inválidos.');
     const validLines = lines.filter((line): line is OrderLine => line !== null);
     if (new Set(validLines.map(line => line.id)).size !== validLines.length) throw new TypeError('O pedido contém itens com identificadores repetidos.');
-    calculateOrder(validLines, receivedCents);
+    const discountCents = ownDataValue(value, 'discountCents');
+    const couponCode = ownDataValue(value, 'couponCode');
+    // Discount and code travel together, exactly as the server stores them.
+    const hasCoupon = discountCents !== undefined || couponCode !== undefined;
+    if (hasCoupon && (!Number.isSafeInteger(discountCents) || typeof discountCents !== 'number' || discountCents < 0 || !boundedString(couponCode, 0, 24))) {
+      throw new TypeError('Desconto do pedido inválido.');
+    }
+    calculateOrder(validLines, receivedCents, hasCoupon ? discountCents as number : 0);
     return {
       id,
       number,
@@ -323,6 +346,7 @@ export function validateOrder(value: unknown): Order {
       receivedCents,
       status,
       createdAt,
+      ...(hasCoupon ? { discountCents: discountCents as number, couponCode: couponCode as string } : {}),
     };
   } catch (error) {
     if (error instanceof Error) throw new TypeError(error.message);

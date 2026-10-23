@@ -29,14 +29,15 @@ Abrir http://127.0.0.1:3022. Porta fixa para preservar a origem dos dados locais
 - App instalável (PWA): manifesto, ícones e service worker (`public/sw.js`) só no build de produção; guarda apenas a casca do app, nunca pedidos.
 - Site de pedidos ("Monte sua caixa", redesenhado com Impeccable): cards com fotos do catálogo só para produtos identificados com certeza (`public/products/`, origem embutida em cada `.json`), demais itens em cardápio; caixa fixa com total e sinal; fontes Gloock e Onest servidas pelo próprio build. Identidade documentada em DESIGN.md.
 - Pedidos do site: `/pedido` é o formulário público para clientes (catálogo com estimativa e sinal de 50%, itens personalizados "sob orçamento", data, retirada/entrega e WhatsApp). O envio vira uma solicitação, não uma encomenda. Dono e atendimento com financeiro veem a aba "Pedidos do site", transformam em encomenda "A confirmar" (itens sem preço precisam ser orçados antes de salvar) ou descartam. Valores do cliente são apenas estimativa. Sem CAPTCHA: há campo-isca e limites no servidor (20 envios/10 min no total, 5/dia por telefone, 300 pendentes).
+- Cupons, clientes e pronta entrega: dono configura cupons; equipe autorizada gerencia clientes e pronta entrega com foto/estoque. O site aplica cupom e reserva estoque; conversão em encomenda é atômica. Exportação CSV inclui só contatos autorizados, pelo dono. Regras, verificação e implantação em [GROWTH.md](GROWTH.md).
 
 ## Ambiente compartilhado local
 
-Não é banco publicado. Requer Supabase CLI e Docker. Projeto isolado `saintcakes`, API54351, Postgres54352, e-mail de teste54354; faixa54350–54359 reservada. Não usar portas nem containers dos outros projetos.
+Este ambiente de teste é independente do banco remoto. Requer Supabase CLI e Docker. Projeto isolado `saintcakes`, API54351, Postgres54352, e-mail de teste54354; faixa54350–54359 reservada. Não usar portas nem containers dos outros projetos.
 
 ```powershell
 docker network create -o com.docker.network.bridge.host_binding_ipv4=127.0.0.1 saintcakes-local
-supabase start --network-id saintcakes-local --exclude realtime,storage-api,imgproxy,studio,edge-runtime,logflare,vector,supavisor,postgres-meta
+supabase start --network-id saintcakes-local --exclude realtime,imgproxy,studio,edge-runtime,logflare,vector,supavisor,postgres-meta
 ```
 
 Crie a rede somente se ainda não existir. O comando start aplica as migrações locais. Em Windows/Docker Desktop, conferir os bindings efetivos: a opção de rede não garante sozinha que as portas publicadas usem apenas loopback. A rede não deve ser considerada um controle de autorização. Usar apenas fixtures locais enquanto o ambiente de operação não for preparado.
@@ -67,7 +68,7 @@ npm test
 npm run typecheck
 npm run lint
 npm run build
-supabase test db --local --network-id saintcakes-local supabase/tests/shared_orders.test.sql supabase/tests/order_requests.test.sql
+supabase test db --local --network-id saintcakes-local
 & ./supabase/tests/concurrent_revision.ps1
 supabase db advisors --local --type security --level warn --fail-on error
 ```
@@ -76,9 +77,9 @@ Se o filtro RTK falhar ao interpretar o lint: `rtk proxy npm run lint`. Evidênc
 
 ## Limites e próximos incrementos
 
-Não há WhatsApp conectado, confirmação bancária, cobrança, emissão fiscal, cálculo automático de frete, kits, topper ou descontos. Catálogo/regras em [CATALOG.md](CATALOG.md), produto em [PRODUCT.md](PRODUCT.md), identidade em [DESIGN.md](DESIGN.md). Observações/descrições são compartilhadas com a produção: não anotar nelas finanças sigilosas.
+Não há WhatsApp conectado, confirmação bancária, cobrança, emissão fiscal, cálculo de frete por distância, kits ou topper. Frete por bairro e descontos configurados são descritos acima. Catálogo/regras em [CATALOG.md](CATALOG.md), produto em [PRODUCT.md](PRODUCT.md), identidade em [DESIGN.md](DESIGN.md). Observações/descrições são compartilhadas com a produção: não anotar nelas finanças sigilosas.
 
-Antes de operar: preparar ambiente publicado e contas reais, provisionamento/recuperação de acesso, backup e restauração do banco; validar catálogo completo, personalizações e políticas comerciais; conferir segurança do ambiente e aparelhos. Auditoria atual é de pedidos, não de mudanças de permissão. Backend atual é para uma única confeitaria; desempenho em volume e dispositivos físicos não medido. Nenhum recurso remoto foi criado ou alterado.
+Antes de ampliar a operação: conferir provisionamento/recuperação de acesso, backup e restauração do banco; validar catálogo completo, personalizações e políticas comerciais; conferir segurança do ambiente e aparelhos. Auditoria atual é de pedidos, não de mudanças de permissão. Backend atual é para uma única confeitaria; desempenho em volume e dispositivos físicos não medido. Estado de implantação em GROWTH.md.
 
 ## Modelos e delegação
 
@@ -88,4 +89,4 @@ Coordenador integra e verifica. No primeiro incremento, Luna cuidou do domínio 
 
 Projeto `ecapx/saintcakes`, Vite/Node24, build `npm run build`, saída `dist`. `vercel.json` mantém deep links e noindex. As duas variáveis VITE_SUPABASE ficam no painel Vercel, nunca em arquivos versionados. Builds Vercel exigem URLHTTPS e chave publishable para impedir publicação acidental do modo de demonstração. A configuração local em `.env.local` é independente.
 
-Destino Supabase informado pelo usuário: `uzesslqldbuplovidgkq`, em conta própria e separada do XTAGE. A aplicação do schema e o fechamento do cadastro público exigem acesso administrativo a esse projeto. A chave publishable identifica o cliente, mas não autoriza migração ou configuração de Auth. Contas reais e o primeiro administrador precisam ser provisionados antes do uso pela equipe.
+Destino Supabase: `uzesslqldbuplovidgkq`, em conta própria e separada do XTAGE. Schema até `20261025130000` aplicado em 23/10/2026; cadastro público fechado. Mudanças futuras exigem autorização e acesso administrativo ao projeto. A chave publishable identifica o cliente, mas não autoriza migração ou configuração de Auth. Contas de equipe precisam ser provisionadas administrativamente.

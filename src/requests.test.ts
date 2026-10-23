@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { validateOrder } from './domain.ts';
-import { estimate, parseRequestRecord, requestProblem, requestToOrder } from './requests.ts';
+import { estimate, parseRequestRecord, requestPayload, requestProblem, requestToOrder } from './requests.ts';
 import type { OrderRequestInput } from './requests.ts';
 
 const today = '2026-10-22';
@@ -64,7 +64,32 @@ test('requestToOrder drafts a pending order that validates once quoted items are
   assert.equal(draft.status, 'pending');
   assert.equal(draft.receivedCents, 0);
   assert.match(draft.notes, /Sem lactose/);
-  assert.notEqual(draft.lines[0].id, 'a');
+  assert.equal(draft.lines[0].id, 'a');
   const priced = { ...draft, number: 1, lines: draft.lines.map(line => ({ ...line, unitPriceCents: line.unitPriceCents || 3500 })) };
   assert.equal(validateOrder(priced).lines[1].unitPriceCents, 3500);
+});
+
+test('requestPayload sends showcase picks as lines and optional keys only when used', () => {
+  const body = requestPayload({ ...valid, showcase: [{ showcaseId: 's-1', quantity: 2 }], couponCode: ' bemvindo10 ', marketingOptIn: true });
+  assert.deepEqual(body.lines, [...valid.lines, { showcaseId: 's-1', quantity: 2 }]);
+  assert.equal(body.couponCode, 'bemvindo10');
+  assert.equal(body.marketingOptIn, true);
+  assert.equal('showcase' in body, false);
+  const plain = requestPayload(valid);
+  assert.equal('couponCode' in plain, false);
+  assert.equal('marketingOptIn' in plain, false);
+  assert.match(requestProblem({ ...valid, lines: [], showcase: [{ showcaseId: 's-1', quantity: 0 }] }, today)!, /pronta entrega/);
+  assert.equal(requestProblem({ ...valid, lines: [], showcase: [{ showcaseId: 's-1', quantity: 1 }] }, today), null);
+});
+
+test('a site request with a coupon becomes a discounted draft order', () => {
+  const parsed = parseRequestRecord({ ...record, request: { ...record.request, couponCode: 'BEMVINDO10', discountCents: 1335, lines: [{ id: 'a', description: 'Bolo fictício', quantity: 1.5, unit: 'kg', unitPriceCents: 8900, showcaseId: 'x' }] } });
+  assert.equal(parsed.request.discountCents, 1335);
+  assert.equal('showcaseId' in parsed.request.lines[0], false);
+  assert.deepEqual(parsed.reservedLineIds, ['a']);
+  const draft = requestToOrder(parsed, '2026-10-23T12:00:00.000Z');
+  assert.equal(draft.discountCents, 1335);
+  assert.equal(draft.couponCode, 'BEMVINDO10');
+  assert.match(draft.notes, /Cupom BEMVINDO10/);
+  assert.equal('discountCents' in requestToOrder(parseRequestRecord(record), '2026-10-23T12:00:00.000Z'), false);
 });

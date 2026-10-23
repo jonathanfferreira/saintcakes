@@ -6,6 +6,7 @@ import { catalog } from './catalog';
 type Props = {
   order: Order | null;
   date: string;
+  reservedLineIds?: string[];
   onSave: (order: Order) => void | Promise<void>;
   onCancel: () => void;
 };
@@ -22,7 +23,7 @@ const statuses: { value: Order['status']; label: string }[] = [
   { value: 'cancelled', label: 'Cancelado' },
 ];
 
-export default function OrderForm({ order, date, onSave, onCancel }: Props) {
+export default function OrderForm({ order, date, reservedLineIds = [], onSave, onCancel }: Props) {
   const [draft, setDraft] = useState<Order>(() => order ? { ...order, lines: order.lines.map(line => ({ ...line })) } : {
     id: crypto.randomUUID(), number: 0, customer: '', phone: '', date, time: '12:00',
     fulfillment: 'pickup', address: '', notes: '', lines: [], receivedCents: 0,
@@ -34,6 +35,8 @@ export default function OrderForm({ order, date, onSave, onCancel }: Props) {
     unit: line.unit, price: order.number || line.unitPriceCents ? moneyInput(line.unitPriceCents) : '',
   })) : [newLine()]);
   const [received, setReceived] = useState(() => moneyInput(order?.receivedCents ?? 0));
+  const [couponCode, setCouponCode] = useState(order?.couponCode ?? '');
+  const [discount, setDiscount] = useState(() => moneyInput(order?.discountCents ?? 0));
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
   const saveLock = useRef(false);
@@ -68,10 +71,18 @@ export default function OrderForm({ order, date, onSave, onCancel }: Props) {
   }
 
   function readOrder(): Order {
+    let discountCents: number;
+    try { discountCents = parseMoney(discount.trim() || '0'); }
+    catch { throw new Error('Informe o desconto em reais, sem separador de milhar (ex.: 15,00).'); }
+    const code = couponCode.trim().toUpperCase();
+    // Discount and coupon code are stored together, or not at all, as the server expects.
+    const base: Order = { ...draft };
+    delete base.discountCents; delete base.couponCode;
     return {
-      ...draft, customer: draft.customer.trim(), phone: draft.phone.trim(),
+      ...base, customer: draft.customer.trim(), phone: draft.phone.trim(),
       address: draft.address.trim(), notes: draft.notes.trim(), lines: readLines(),
       receivedCents: parseMoney(received),
+      ...(discountCents > 0 || code ? { discountCents, couponCode: code.slice(0, 24) } : {}),
     };
   }
 
@@ -84,7 +95,7 @@ export default function OrderForm({ order, date, onSave, onCancel }: Props) {
       customer: candidate.customer || 'Prévia',
       address: candidate.address || (candidate.fulfillment === 'delivery' ? 'Prévia' : ''),
     });
-    summary = calculateOrder(preview.lines, preview.receivedCents);
+    summary = calculateOrder(preview.lines, preview.receivedCents, preview.discountCents ?? 0);
   } catch {
     summary = null;
   }
@@ -176,13 +187,14 @@ export default function OrderForm({ order, date, onSave, onCancel }: Props) {
 
             <section className="sc-card of-section" aria-labelledby="order-items-title">
               <h2 id="order-items-title">Itens</h2>
+              {reservedLineIds.length > 0 && <p className="of-hint">A quantidade da pronta entrega já está reservada. Para trocar esses itens, descarte a solicitação e registre uma nova reserva.</p>}
               <p className="of-hint">Informe o preço por unidade, kg ou cento. Quantidades em kg aceitam até três casas decimais.</p>
               <p className="of-hint">26 opções iniciais do catálogo enviado: bolos da linha party e mini salgados. Confira o preço combinado; outros produtos podem ser preenchidos manualmente.</p>
               {lines.map((line, index) => <fieldset className="of-item" key={line.id}>
                 <legend className="of-item-label">Item {index + 1}</legend>
                 <div className="sc-field of-catalog">
                   <label htmlFor={`catalog-${line.id}`}>Preencher pelo catálogo</label>
-                  <select id={`catalog-${line.id}`} value="" onChange={event => {
+                  <select id={`catalog-${line.id}`} disabled={reservedLineIds.includes(line.id)} value="" onChange={event => {
                     const selected = catalog.find(item => item.id === event.target.value);
                     if (selected) changeLine(line.id, { description: selected.description, unit: selected.unit, price: moneyInput(selected.unitPriceCents) });
                   }}>
@@ -196,11 +208,11 @@ export default function OrderForm({ order, date, onSave, onCancel }: Props) {
                 </div>
                 <div className="sc-field">
                   <label htmlFor={`quantity-${line.id}`}>Quantidade *</label>
-                  <input id={`quantity-${line.id}`} required inputMode="decimal" pattern="[0-9]+([,.][0-9]{1,3})?" value={line.quantity} onChange={event => changeLine(line.id, { quantity: event.target.value })} />
+                  <input id={`quantity-${line.id}`} readOnly={reservedLineIds.includes(line.id)} required inputMode="decimal" pattern="[0-9]+([,.][0-9]{1,3})?" value={line.quantity} onChange={event => changeLine(line.id, { quantity: event.target.value })} />
                 </div>
                 <div className="sc-field">
                   <label htmlFor={`unit-${line.id}`}>Unidade</label>
-                  <select id={`unit-${line.id}`} value={line.unit} onChange={event => changeLine(line.id, { unit: event.target.value as OrderLine['unit'] })}>
+                  <select id={`unit-${line.id}`} disabled={reservedLineIds.includes(line.id)} value={line.unit} onChange={event => changeLine(line.id, { unit: event.target.value as OrderLine['unit'] })}>
                     <option value="un">Unidade</option><option value="kg">Kg</option><option value="cento">Cento</option>
                   </select>
                 </div>
@@ -208,7 +220,7 @@ export default function OrderForm({ order, date, onSave, onCancel }: Props) {
                   <label htmlFor={`price-${line.id}`}>Preço (R$) *</label>
                   <input id={`price-${line.id}`} required inputMode="decimal" pattern="[0-9]+([,.][0-9]{1,2})?" placeholder="0,00" value={line.price} onChange={event => changeLine(line.id, { price: event.target.value })} />
                 </div>
-                <button type="button" className="sc-btn sc-btn-quiet of-remove" disabled={lines.length === 1} aria-label={`Remover item ${index + 1}`} onClick={() => {
+                <button type="button" className="sc-btn sc-btn-quiet of-remove" disabled={lines.length === 1 || reservedLineIds.includes(line.id)} aria-label={`Remover item ${index + 1}`} onClick={() => {
                   setLines(current => current.filter(item => item.id !== line.id)); setError('');
                 }}>Remover</button>
               </fieldset>)}
@@ -234,8 +246,19 @@ export default function OrderForm({ order, date, onSave, onCancel }: Props) {
                   </select>
                   <small>O andamento do pedido é independente do recebimento.</small>
                 </div>
+                <div className="sc-field">
+                  <label htmlFor="order-coupon">Cupom (opcional)</label>
+                  <input id="order-coupon" maxLength={24} autoCapitalize="characters" value={couponCode} onChange={event => { setCouponCode(event.target.value.toUpperCase()); setError(''); }} />
+                  <small>Código usado pelo cliente. Pedidos do site já chegam com o cupom conferido.</small>
+                </div>
+                <div className="sc-field">
+                  <label htmlFor="order-discount">Desconto (R$)</label>
+                  <input id="order-discount" inputMode="decimal" pattern="[0-9]+([,.][0-9]{1,2})?" value={discount} onChange={event => { setDiscount(event.target.value); setError(''); }} />
+                  <small>O desconto não pode zerar o pedido.</small>
+                </div>
               </div>
               <dl className="of-figures of-pay-summary" aria-live="polite">
+                {!!summary?.discountCents && <><div><dt>Subtotal</dt><dd className="sc-money">{money(summary.subtotalCents)}</dd></div><div><dt>Desconto{couponCode.trim() ? ` · ${couponCode.trim()}` : ''}</dt><dd className="sc-money">− {money(summary.discountCents)}</dd></div></>}
                 <div><dt>Total</dt><dd className="sc-money">{money(summary?.totalCents)}</dd></div>
                 <div><dt>Sinal de 50%</dt><dd className="sc-money">{money(summary?.depositCents)}</dd></div>
                 <div><dt>Falta para o sinal</dt><dd className="sc-money">{money(summary?.depositDueCents)}</dd></div>
