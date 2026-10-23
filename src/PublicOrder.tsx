@@ -69,7 +69,7 @@ function Thumb({ item, src }: { item?: CatalogItem; src?: string }) {
   return <span className="po-thumb po-thumb-mark" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M4 20h4L19 9l-4-4L4 16v4ZM13.5 6.5l4 4" /></svg></span>;
 }
 
-export default function PublicOrder({ client }: { client: SupabaseClient | null }) {
+export default function PublicOrder({ client, shop: shopSlug }: { client: SupabaseClient | null; shop: string }) {
   const today = localDateKey();
   const [quantities, setQuantities] = useState<Record<string, number>>({});
   const [added, setAdded] = useState<string[]>([]);
@@ -109,7 +109,7 @@ export default function PublicOrder({ client }: { client: SupabaseClient | null 
   useEffect(() => {
     if (!client) return;
     let alive = true;
-    rpc(client, 'public_settings').then(value => { if (alive) setShop(parsePublicSettings(value)); }).catch(() => { /* Keep defaults. */ });
+    rpc(client, 'public_settings', { p_shop: shopSlug }).then(value => { if (alive) setShop(parsePublicSettings(value)); }).catch(() => { /* Keep defaults. */ });
     return () => { alive = false; };
   }, [client]);
   // The showcase is optional: a failed call just hides the section. Picks are clamped to what is still on the shelf.
@@ -117,7 +117,7 @@ export default function PublicOrder({ client }: { client: SupabaseClient | null 
     if (!client) return;
     const token = ++showcaseToken.current;
     setShowcaseBusy(true);
-    rpc(client, 'public_showcase').then(value => {
+    rpc(client, 'public_showcase', { p_shop: shopSlug }).then(value => {
       if (token !== showcaseToken.current) return;
       const items = (Array.isArray(value) ? value : []).flatMap(raw => { try { const item = parsePublicShowcaseItem(raw); return item.stock > 0 ? [item] : []; } catch { return []; } });
       setShowcase(items);
@@ -165,7 +165,7 @@ export default function PublicOrder({ client }: { client: SupabaseClient | null 
   useEffect(() => { couponToken.current++; setCouponBusy(false); }, [phone, subtotalCents]);
 
   async function askCoupon(code: string) {
-    return parseCouponQuote(await rpc(client as SupabaseClient, 'check_coupon', { p_code: code, p_phone: phone, p_subtotal_cents: subtotalCents }));
+    return parseCouponQuote(await rpc(client as SupabaseClient, 'check_coupon', { p_shop: shopSlug, p_code: code, p_phone: phone, p_subtotal_cents: subtotalCents }));
   }
   async function applyCoupon() {
     const code = couponInput.trim();
@@ -227,7 +227,7 @@ export default function PublicOrder({ client }: { client: SupabaseClient | null 
     if (!client) return fail('Os pedidos pelo site estão indisponíveis no momento. Chame a Saint Cakes no WhatsApp.');
     setSending(true); setError('');
     try {
-      const result = await rpc(client, 'submit_order_request', { p_request: requestPayload(input) });
+      const result = await rpc(client, 'submit_order_request', { p_shop: shopSlug, p_request: requestPayload(input) });
       const cents = typeof result === 'object' && result && 'discountCents' in result ? Number(result.discountCents) : 0;
       setDiscount(Number.isSafeInteger(cents) && cents > 0 ? cents : 0);
       setSent(true); window.scrollTo({ top: 0 });

@@ -12,11 +12,11 @@ insert into auth.users(id, email) values
   ('00000000-0000-4000-8000-000000000013', 'production@example.invalid'),
   ('00000000-0000-4000-8000-000000000014', 'limited@example.invalid'),
   ('00000000-0000-4000-8000-000000000015', 'outsider@example.invalid');
-insert into private.staff_members(user_id, display_name, role, active, can_view_financial) values
-  ('00000000-0000-4000-8000-000000000011','Dona fictícia','owner',true,true),
-  ('00000000-0000-4000-8000-000000000012','Atendente fictícia','attendant',true,true),
-  ('00000000-0000-4000-8000-000000000013','Produção fictícia','production',true,true),
-  ('00000000-0000-4000-8000-000000000014','Atendente limitada','attendant',true,false);
+insert into private.staff_members(tenant_id, user_id, display_name, role, active, can_view_financial) values
+  ('a0000000-0000-4000-8000-000000000001','00000000-0000-4000-8000-000000000011','Dona fictícia','owner',true,true),
+  ('a0000000-0000-4000-8000-000000000001','00000000-0000-4000-8000-000000000012','Atendente fictícia','attendant',true,true),
+  ('a0000000-0000-4000-8000-000000000001','00000000-0000-4000-8000-000000000013','Produção fictícia','production',true,true),
+  ('a0000000-0000-4000-8000-000000000001','00000000-0000-4000-8000-000000000014','Atendente limitada','attendant',true,false);
 
 create function pg_temp.request(changes jsonb default '{}') returns jsonb language sql as $$
   select jsonb_build_object('customer','Cliente fictícia','phone','(47) 90000-0001',

@@ -27,8 +27,8 @@ try {
   Invoke-LocalSql @'
 begin;
 insert into auth.users(id,email) values ('20000000-0000-4000-8000-000000000002','concurrency@example.invalid');
-insert into private.staff_members(user_id,display_name,role,active,can_view_financial)
-  values ('20000000-0000-4000-8000-000000000002','CAS ficticia','owner',true,true);
+insert into private.staff_members(tenant_id,user_id,display_name,role,active,can_view_financial)
+  values ('a0000000-0000-4000-8000-000000000001','20000000-0000-4000-8000-000000000002','CAS ficticia','owner',true,true);
 set local role authenticated;
 set local request.jwt.claim.sub='20000000-0000-4000-8000-000000000002';
 select public.save_order('{"id":"20000000-0000-4000-8000-000000000001","number":1,

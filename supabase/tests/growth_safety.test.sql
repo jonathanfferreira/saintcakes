@@ -16,11 +16,11 @@ insert into auth.users(id, email) values
   ('00000000-0000-4000-8000-000000000072','safety-attendant@example.invalid'),
   ('00000000-0000-4000-8000-000000000073','safety-no-finance@example.invalid'),
   ('00000000-0000-4000-8000-000000000074','safety-production@example.invalid');
-insert into private.staff_members(user_id, display_name, role, active, can_view_financial) values
-  ('00000000-0000-4000-8000-000000000071','Owner fictícia','owner',true,true),
-  ('00000000-0000-4000-8000-000000000072','Atendente fictícia','attendant',true,true),
-  ('00000000-0000-4000-8000-000000000073','Sem financeiro fictícia','attendant',true,false),
-  ('00000000-0000-4000-8000-000000000074','Produção fictícia','production',true,true);
+insert into private.staff_members(tenant_id, user_id, display_name, role, active, can_view_financial) values
+  ('a0000000-0000-4000-8000-000000000001','00000000-0000-4000-8000-000000000071','Owner fictícia','owner',true,true),
+  ('a0000000-0000-4000-8000-000000000001','00000000-0000-4000-8000-000000000072','Atendente fictícia','attendant',true,true),
+  ('a0000000-0000-4000-8000-000000000001','00000000-0000-4000-8000-000000000073','Sem financeiro fictícia','attendant',true,false),
+  ('a0000000-0000-4000-8000-000000000001','00000000-0000-4000-8000-000000000074','Produção fictícia','production',true,true);
 
 create function pg_temp.as_user(id text) returns void language sql as $$
   select set_config('request.jwt.claim.sub', id, true);

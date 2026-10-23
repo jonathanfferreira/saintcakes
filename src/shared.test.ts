@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { configuration, errorMessage, parseList, parseOrderRecord, parseProductionRecord, parseStaff, parseStaffAccess } from './shared.ts';
+import { configuration, errorMessage, parseList, parseOrderRecord, parseProductionRecord, parseStaff, parseStaffAccess, publicShopSlug } from './shared.ts';
 
 const publicKey = 'sb_publishable_example_for_local_tests';
 const order = {
@@ -67,4 +67,20 @@ test('known operation errors explain validation, conflict and authorization with
   assert.match(errorMessage(new Error('Seu acesso mudou. Entre novamente.')), /Entre novamente/);
   assert.equal(errorMessage(new Error('private database connection details')), errorMessage(undefined));
   assert.ok(!errorMessage(new Error('private database connection details')).includes('private'));
+});
+
+test('public order routes name the shop; bare /pedido keeps serving Saint Cakes', () => {
+  assert.equal(publicShopSlug('/pedido'), 'saint-cakes');
+  assert.equal(publicShopSlug('/pedido/'), 'saint-cakes');
+  assert.equal(publicShopSlug('/pedido/doceria-exemplo'), 'doceria-exemplo');
+  assert.equal(publicShopSlug('/pedido/doceria-exemplo/'), 'doceria-exemplo');
+  for (const team of ['/', '/painel', '/pedidos', '/pedido/Doceria', '/pedido/-x-', '/pedido/a/b', '/pedido/x']) assert.equal(publicShopSlug(team), null, team);
+});
+
+test('the signed-in member carries a validated shop; listings may omit it', () => {
+  const member = { userId: 'u1', displayName: 'Dona Exemplo', role: 'owner', canViewFinancial: true };
+  assert.deepEqual(parseStaff({ ...member, shop: { id: 's1', slug: 'doceria-exemplo', name: 'Doceria Exemplo', status: 'trial' } }).shop, { id: 's1', slug: 'doceria-exemplo', name: 'Doceria Exemplo' });
+  assert.equal(parseStaff(member).shop, undefined);
+  assert.throws(() => parseStaff({ ...member, shop: { id: '', slug: 'x', name: 'y' } }));
+  assert.throws(() => parseStaff({ ...member, shop: null }));
 });

@@ -6,7 +6,15 @@ import type { OrderRequestRecord } from './requests';
 import type { ShopSettings } from './settings';
 import type { GrowthApi } from './growth';
 
-export type Staff = { userId: string; displayName: string; role: 'owner' | 'attendant' | 'production'; canViewFinancial: boolean };
+export type Shop = { id: string; slug: string; name: string };
+/** `shop` comes with the signed-in member (current_staff); team listings omit it. */
+export type Staff = { userId: string; displayName: string; role: 'owner' | 'attendant' | 'production'; canViewFinancial: boolean; shop?: Shop };
+
+/** Shop slug of a public order page (`/pedido/<slug>`); the bare `/pedido` keeps serving Saint Cakes. Null for team routes. */
+export function publicShopSlug(pathname: string): string | null {
+  const match = /^\/pedido(?:\/([a-z0-9][a-z0-9-]{1,38}[a-z0-9]))?\/?$/.exec(pathname);
+  return match ? match[1] ?? 'saint-cakes' : null;
+}
 export type OrderRecord = { order: Order; revision: number };
 export type ProductionOrder = Pick<Order, 'id' | 'number' | 'customer' | 'date' | 'time' | 'fulfillment' | 'notes' | 'status'> & { lines: Omit<OrderLine, 'unitPriceCents'>[] };
 export type ProductionRecord = { order: ProductionOrder; revision: number };
@@ -42,7 +50,13 @@ function object(value: unknown): Record<string, unknown> {
 export function parseStaff(value: unknown): Staff {
   const v = object(value);
   if (typeof v.userId !== 'string' || !v.userId || typeof v.displayName !== 'string' || !v.displayName || !['owner', 'attendant', 'production'].includes(String(v.role)) || typeof v.canViewFinancial !== 'boolean') throw new Error('Resposta inválida.');
-  return { userId: v.userId, displayName: v.displayName, role: v.role as Staff['role'], canViewFinancial: v.canViewFinancial };
+  const staff: Staff = { userId: v.userId, displayName: v.displayName, role: v.role as Staff['role'], canViewFinancial: v.canViewFinancial };
+  if (v.shop !== undefined) {
+    const s = object(v.shop);
+    if (typeof s.id !== 'string' || !s.id || typeof s.slug !== 'string' || !s.slug || typeof s.name !== 'string' || !s.name) throw new Error('Resposta inválida.');
+    staff.shop = { id: s.id, slug: s.slug, name: s.name };
+  }
+  return staff;
 }
 function revision(value: unknown): number {
   if (typeof value !== 'number' || !Number.isSafeInteger(value) || value < 1) throw new Error('Revisão inválida.');

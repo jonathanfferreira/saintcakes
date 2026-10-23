@@ -152,7 +152,9 @@ export default function WorkspaceGate({ client }: { client: SupabaseClient }) {
   const growth: GrowthApi = useMemo(() => ({
     call: (name, args) => rpc(client, name, args),
     uploadPhoto: async (file, extension) => {
-      const path = `showcase/${crypto.randomUUID()}.${extension}`;
+      // Photos live in the shop's own folder; storage rejects writes into another shop's folder.
+      const shopId = currentStaff.current?.shop?.id;
+      const path = `${shopId ? `${shopId}/` : ''}showcase/${crypto.randomUUID()}.${extension}`;
       const { error } = await client.storage.from(SHOWCASE_BUCKET).upload(path, file, { contentType: file.type || `image/${extension === 'jpg' ? 'jpeg' : extension}`, upsert: false });
       if (error) throw error;
       return path;
