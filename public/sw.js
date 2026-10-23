@@ -1,9 +1,9 @@
 // Minimal service worker: makes the app installable and shows request alerts.
 // Orders are never cached; only the app shell is kept for a quick start when offline.
-const SHELL = 'saint-cakes-shell-v1';
+const SHELL = 'encomendas-shell-v2';
 
 self.addEventListener('install', event => {
-  event.waitUntil(caches.open(SHELL).then(cache => cache.addAll(['/', '/manifest.webmanifest', '/icons/icon-192.png'])).then(() => self.skipWaiting()));
+  event.waitUntil(caches.open(SHELL).then(cache => cache.addAll(['/', '/manifest.webmanifest', '/icons/encomendas.svg'])).then(() => self.skipWaiting()));
 });
 
 self.addEventListener('activate', event => {
@@ -36,7 +36,7 @@ self.addEventListener('fetch', event => {
 self.addEventListener('notificationclick', event => {
   event.notification.close();
   event.waitUntil(self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(windows => {
-    const open = windows.find(client => new URL(client.url).pathname !== '/pedido');
+    const open = windows.find(client => !/^\/pedido(?:\/|$)/.test(new URL(client.url).pathname));
     return open ? open.focus() : self.clients.openWindow('/');
   }));
 });

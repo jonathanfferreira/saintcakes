@@ -5,6 +5,7 @@ import type { Order, OrderLine, OrderStatus } from './domain';
 import type { OrderRequestRecord } from './requests';
 import type { ShopSettings } from './settings';
 import type { GrowthApi } from './growth';
+import type { Storefront } from './storefront';
 
 export type Shop = { id: string; slug: string; name: string };
 /** `shop` comes with the signed-in member (current_staff); team listings omit it. */
@@ -19,7 +20,7 @@ export type OrderRecord = { order: Order; revision: number };
 export type ProductionOrder = Pick<Order, 'id' | 'number' | 'customer' | 'date' | 'time' | 'fulfillment' | 'notes' | 'status'> & { lines: Omit<OrderLine, 'unitPriceCents'>[] };
 export type ProductionRecord = { order: ProductionOrder; revision: number };
 export type StaffAccess = Staff & { active: boolean };
-export type SharedMode = { staff: Staff; records: OrderRecord[]; requests: OrderRequestRecord[]; settings: ShopSettings | null; busy: boolean; syncError: string; lastSynced: string | null; save: (order: Order, revision: number | null, requestId?: string) => Promise<Order>; updateStatus: (order: Order, revision: number, status: OrderStatus) => Promise<void>; resolveRequest: (id: string, status: 'converted' | 'dismissed') => Promise<void>; saveSettings: (settings: ShopSettings) => Promise<void>; growth: GrowthApi; refresh: () => Promise<void> };
+export type SharedMode = { staff: Staff; storefront: Storefront; saveStorefront: (value: Storefront) => Promise<void>; records: OrderRecord[]; requests: OrderRequestRecord[]; settings: ShopSettings | null; busy: boolean; syncError: string; lastSynced: string | null; save: (order: Order, revision: number | null, requestId?: string) => Promise<Order>; updateStatus: (order: Order, revision: number, status: OrderStatus) => Promise<void>; resolveRequest: (id: string, status: 'converted' | 'dismissed') => Promise<void>; saveSettings: (settings: ShopSettings) => Promise<void>; growth: GrowthApi; refresh: () => Promise<void> };
 
 export function configuration(url: string | undefined, key: string | undefined): { mode: 'local' } | { mode: 'error'; error: string } | { mode: 'shared'; client: SupabaseClient } {
   if (!url && !key) return { mode: 'local' };
@@ -34,6 +35,8 @@ export function configuration(url: string | undefined, key: string | undefined):
 
 export function errorMessage(error: unknown): string {
   const message = typeof error === 'object' && error && 'message' in error ? String(error.message) : '';
+  if (message.includes('STOREFRONT_CONFLICT')) return 'A identidade ou o catálogo foi alterado por outra pessoa. Seu rascunho foi mantido. Reabra a configuração atual antes de refazer a edição.';
+  if (message.includes('INVALID_STOREFRONT')) return 'Confira o nome, os endereços das imagens e os produtos da loja.';
   if (message.includes('ORDER_CONFLICT')) return 'Este pedido foi alterado por outra pessoa. Seu rascunho continua aberto. Copie suas alterações e reabra a versão atual do pedido antes de refazer a edição.';
   if (message.includes('SHOWCASE_RESERVED')) return 'A quantidade e a unidade dos itens de pronta entrega já estão reservadas. Preserve esses itens; ajustes de estoque precisam ser conferidos na vitrine.';
   if (message.includes('ACCESS_DENIED')) return 'Seu acesso mudou ou não permite esta ação. Solicite à responsável a revisão da permissão.';

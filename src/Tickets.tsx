@@ -25,9 +25,9 @@ const shortLine = (description: string) => description.replace(' · linha party'
 const qty = (value: number) => value.toLocaleString('pt-BR', { maximumFractionDigits: 3 });
 const stamp = () => new Date().toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
 
-function KitchenTicket({ order }: { order: KitchenOrder }) {
+function KitchenTicket({ order, name }: { order: KitchenOrder; name: string }) {
   return <section className="tk">
-    <p className="tk-center tk-brand">SAINT CAKES · COMANDA</p>
+    <p className="tk-center tk-brand">{name} · COMANDA</p>
     <p className="tk-big tk-center">#{String(order.number).padStart(3, '0')}</p>
     <p className="tk-center tk-strong">{order.fulfillment === 'pickup' ? 'RETIRADA' : 'ENTREGA'} · {order.time}</p>
     <p className="tk-center">{longDate(order.date)}</p>
@@ -41,11 +41,10 @@ function KitchenTicket({ order }: { order: KitchenOrder }) {
   </section>;
 }
 
-function Receipt({ order, shop }: { order: Order; shop: Pick<ShopSettings, 'pixKey' | 'pixHolder'> }) {
+function Receipt({ order, shop, name }: { name: string; order: Order; shop: Pick<ShopSettings, 'pixKey' | 'pixHolder'> }) {
   const money = orderMoney(order);
   return <section className="tk">
-    <p className="tk-center tk-brand">SAINT CAKES</p>
-    <p className="tk-center tk-small">Padaria e Confeitaria · Joinville</p>
+    <p className="tk-center tk-brand">{name}</p>
     <hr />
     <p className="tk-center tk-strong">COMPROVANTE DE ENCOMENDA #{String(order.number).padStart(3, '0')}</p>
     <p className="tk-center">{order.fulfillment === 'pickup' ? 'Retirada' : 'Entrega'} · {longDate(order.date)} · {order.time}</p>
@@ -72,14 +71,14 @@ function Receipt({ order, shop }: { order: Order; shop: Pick<ShopSettings, 'pixK
 }
 
 /** Renders the pending print job outside the app, then opens the browser's print. */
-export function PrintHost() {
+export function PrintHost({ name, scope }: { name: string; scope: string }) {
   const [tickets, setTickets] = useState<Ticket[]>([]);
   useEffect(() => {
     const listener = () => setTickets([...job]);
     listeners.add(listener);
     const done = () => { job = []; setTickets([]); };
     window.addEventListener('afterprint', done);
-    return () => { listeners.delete(listener); window.removeEventListener('afterprint', done); };
+    return () => { listeners.delete(listener); window.removeEventListener('afterprint', done); job = []; };
   }, []);
   useEffect(() => {
     if (!tickets.length) return;
@@ -88,12 +87,12 @@ export function PrintHost() {
     return () => clearTimeout(timer);
   }, [tickets]);
   if (!tickets.length) return null;
-  const width = loadPrefs().paper;
+  const width = loadPrefs(undefined, scope).paper;
   return createPortal(<div className={`sc-print-root tk-paper-${width}`}>
     <style>{`@page{size:${width}mm auto;margin:0}`}</style>
-    {tickets.map((ticket, index) => ticket.kind === 'kitchen' ? <KitchenTicket key={index} order={ticket.order} />
-      : ticket.kind === 'receipt' ? <Receipt key={index} order={ticket.order} shop={ticket.shop} />
-      : <section key={index} className="tk"><p className="tk-center tk-brand">SAINT CAKES</p><p className="tk-center tk-strong">TESTE DE IMPRESSÃO</p><hr /><p>Bobina de {width}mm. Se este texto saiu inteiro e legível, a impressora está pronta.</p><p className="tk-big tk-center">1234567890</p><hr /><p className="tk-center tk-small">{stamp()}</p></section>)}
+    {tickets.map((ticket, index) => ticket.kind === 'kitchen' ? <KitchenTicket name={name} key={index} order={ticket.order} />
+      : ticket.kind === 'receipt' ? <Receipt name={name} key={index} order={ticket.order} shop={ticket.shop} />
+      : <section key={index} className="tk"><p className="tk-center tk-brand">{name}</p><p className="tk-center tk-strong">TESTE DE IMPRESSÃO</p><hr /><p>Bobina de {width}mm. Se este texto saiu inteiro e legível, a impressora está pronta.</p><p className="tk-big tk-center">1234567890</p><hr /><p className="tk-center tk-small">{stamp()}</p></section>)}
   </div>, document.body);
 }
 
@@ -102,26 +101,26 @@ export function PrintHost() {
  * confirmed, including those confirmed while the app was closed. Switching auto-print on
  * (PrinterPanel) marks the orders already confirmed, so they are never printed.
  */
-export function useKitchenAutoPrint(orders: KitchenOrder[], enabled: boolean) {
+export function useKitchenAutoPrint(orders: KitchenOrder[], enabled: boolean, scope: string) {
   useEffect(() => {
     if (!enabled) return;
     const now = new Date();
-    const log = loadPrinted();
+    const log = loadPrinted(undefined, scope);
     // Entries for orders still on screen survive pruning, so a far-off confirmed order is never reprinted.
     const printed = { ...prunePrinted(log, now), ...Object.fromEntries(orders.filter(order => log[order.id]).map(order => [order.id, log[order.id]])) };
     const fresh = newlyConfirmed(orders, printed);
     for (const order of fresh) printed[order.id] = now.toISOString();
-    savePrinted(printed);
+    savePrinted(printed, undefined, scope);
     printTickets(fresh.map(order => ({ kind: 'kitchen', order })));
-  }, [orders, enabled]);
+  }, [orders, enabled, scope]);
 }
 
 /** Per-device printer settings shown on the kitchen screens. */
-export function PrinterPanel({ prefs, orders, onChange }: { prefs: PrintPrefs; orders: KitchenOrder[]; onChange: (prefs: PrintPrefs) => void }) {
+export function PrinterPanel({ scope, prefs, orders, onChange }: { scope: string; prefs: PrintPrefs; orders: KitchenOrder[]; onChange: (prefs: PrintPrefs) => void }) {
   const [open, setOpen] = useState(false);
   function update(next: PrintPrefs) {
-    if (next.autoKitchen && !prefs.autoKitchen) savePrinted(seedPrinted(orders, prunePrinted(loadPrinted(), new Date()), new Date()));
-    savePrefs(next);
+    if (next.autoKitchen && !prefs.autoKitchen) savePrinted(seedPrinted(orders, prunePrinted(loadPrinted(undefined, scope), new Date()), new Date()), undefined, scope);
+    savePrefs(next, undefined, scope);
     onChange(next);
   }
   return <section className="sc-card tk-panel" aria-labelledby="printer-title">
@@ -138,7 +137,7 @@ export function PrinterPanel({ prefs, orders, onChange }: { prefs: PrintPrefs; o
       <details className="tk-help"><summary>Como deixar a impressão sem perguntar nada</summary>
         <ol>
           <li>Instale a impressora térmica no Windows com o driver do fabricante e marque-a como <strong>impressora padrão</strong>.</li>
-          <li>Crie um atalho do Google Chrome na área de trabalho e, em Propriedades → Destino, acrescente no final: <code>--kiosk-printing https://saintcakes-ebon.vercel.app</code></li>
+          <li>Crie um atalho do Google Chrome na área de trabalho e, em Propriedades → Destino, acrescente no final: <code>--kiosk-printing {window.location.origin}</code></li>
           <li>Abra o sistema por esse atalho, entre com a conta da cozinha e deixe a aba de Produção aberta. As comandas saem direto na impressora, sem janela.</li>
           <li>Sem o atalho, a impressão funciona igual, mas o Chrome mostra a janela de impressão e alguém precisa tocar em Imprimir.</li>
         </ol>

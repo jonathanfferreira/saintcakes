@@ -25,7 +25,7 @@ function message(error: unknown) {
 
 type Row = CustomerRecord & { orders: number; totalCents: number; balanceCents: number; lastDate: string; nextDate: string | null };
 
-export default function CustomersCentral({ api, orders, today, isOwner, onShowOrders }: { api: GrowthApi; orders: Order[]; today: string; isOwner: boolean; onShowOrders: (search: string) => void }) {
+export default function CustomersCentral({ shopSlug, api, orders, today, isOwner, onShowOrders }: { shopSlug: string; api: GrowthApi; orders: Order[]; today: string; isOwner: boolean; onShowOrders: (search: string) => void }) {
   const [records, setRecords] = useState<CustomerRecord[] | null>(null);
   const [error, setError] = useState('');
   const [query, setQuery] = useState('');
@@ -64,7 +64,7 @@ export default function CustomersCentral({ api, orders, today, isOwner, onShowOr
   function exportCsv() {
     const blob = new Blob(['﻿', optInCsv(rows)], { type: 'text/csv;charset=utf-8' });
     const url = URL.createObjectURL(blob);
-    const link = Object.assign(document.createElement('a'), { href: url, download: `saint-cakes-contatos-${today}.csv` });
+    const link = Object.assign(document.createElement('a'), { href: url, download: `${shopSlug}-contatos-${today}.csv` });
     document.body.append(link); link.click(); link.remove(); URL.revokeObjectURL(url);
   }
 

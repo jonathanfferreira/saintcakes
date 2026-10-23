@@ -29,6 +29,10 @@ select private.create_tenant('shop-paused', 'Loja pausada fictícia', '00000000-
 update private.tenants set status = 'paused' where slug = 'shop-paused';
 select set_config('test.b_id', (select id::text from private.tenants where slug = 'shop-b'), true);
 select set_config('test.a_counter', (select order_counter::text from private.tenants where slug = 'saint-cakes'), true);
+-- B public paid lines now reference its authoritative catalog instead of client prices.
+update private.storefronts set profile = profile || '{"catalog":[{"id":"fixture-b-catalog","category":"Fictícios","description":"Bolo fictício","unit":"kg","unitPriceCents":10000,"page":0}]}'::jsonb
+where tenant_id = current_setting('test.b_id')::uuid;
+
 
 insert into private.showcase_items(id, tenant_id, name, unit, price_cents, stock, photo_path) values
   ('40000000-0000-4000-8000-0000000000a1', 'a0000000-0000-4000-8000-000000000001', 'Bolo A fictício', 'un', 5000, 5, 'a0000000-0000-4000-8000-000000000001/showcase/a.jpg'),
@@ -50,12 +54,16 @@ create function pg_temp.request(changes jsonb default '{}') returns jsonb langua
     'fulfillment','pickup','address','','notes','',
     'lines', jsonb_build_array(jsonb_build_object('description','Bolo fictício','quantity',2,'unit','kg','unitPriceCents',10000))) || changes;
 $$;
+create function pg_temp.request_b(changes jsonb default '{}') returns jsonb language sql as $$
+  select pg_temp.request(jsonb_build_object('storefrontRevision',public.public_storefront('shop-b')->'revision',
+    'lines','[{"catalogItemId":"fixture-b-catalog","quantity":2}]'::jsonb) || changes);
+$$;
 create function pg_temp.ord(id text, customer text, phone text) returns jsonb language sql as $$
   select jsonb_build_object('id',id,'number',99999,'customer',customer,'phone',phone,'date','2026-11-01','time','14:30',
     'fulfillment','pickup','address','','notes','Exemplo multi-loja','status','confirmed','createdAt','2001-01-01T00:00:00.000Z',
     'lines','[{"id":"line-a","description":"Item fictício","quantity":1,"unit":"un","unitPriceCents":1000}]'::jsonb,'receivedCents',0);
 $$;
-grant execute on function pg_temp.as_user(text), pg_temp.request(jsonb), pg_temp.ord(text, text, text) to anon, authenticated;
+grant execute on function pg_temp.as_user(text), pg_temp.request(jsonb), pg_temp.request_b(jsonb), pg_temp.ord(text, text, text) to anon, authenticated;
 
 -- ---------- provisioning is administrative only ----------
 select ok(not has_function_privilege('anon','private.create_tenant(text,text,uuid,text)','EXECUTE'), 'anon cannot provision shops');
@@ -91,10 +99,10 @@ select is(public.check_coupon('saint-cakes','promo10','47 98000-0001',20000) ->>
 select is(public.check_coupon('promo10','47 98000-0001',20000) ->> 'discountCents', '2000', 'legacy coupon check routes to Saint Cakes');
 select throws_ok($$select public.check_coupon('shop-b','SOA','47 98000-0001',20000)$$, 'P0001', 'COUPON_NOT_FOUND', 'another shop''s coupon is unknown');
 
-select is(public.submit_order_request('shop-b', pg_temp.request(jsonb_build_object('couponCode','PROMO10','marketingOptIn',true))) ->> 'discountCents', '4000', 'shop-b request applies the shop-b coupon');
-select throws_ok($$select public.submit_order_request('shop-b', pg_temp.request(jsonb_build_object('phone','(47) 98000-0304','lines',
+select is(public.submit_order_request('shop-b', pg_temp.request_b(jsonb_build_object('couponCode','PROMO10','marketingOptIn',true))) ->> 'discountCents', '4000', 'shop-b request applies the shop-b coupon');
+select throws_ok($$select public.submit_order_request('shop-b', pg_temp.request_b(jsonb_build_object('phone','(47) 98000-0304','lines',
   '[{"showcaseId":"40000000-0000-4000-8000-0000000000a1","quantity":1}]'::jsonb)))$$, 'P0001', 'SHOWCASE_STOCK', 'shop-b cannot reserve another shop''s stock');
-select is(public.submit_order_request('shop-b', pg_temp.request(jsonb_build_object('phone','(47) 98000-0304','lines',
+select is(public.submit_order_request('shop-b', pg_temp.request_b(jsonb_build_object('phone','(47) 98000-0304','lines',
   '[{"showcaseId":"40000000-0000-4000-8000-0000000000b1","quantity":1}]'::jsonb))) ->> 'received', 'true', 'shop-b reserves its own stock');
 select is(public.submit_order_request('saint-cakes', pg_temp.request(jsonb_build_object('phone','(47) 98000-0303','couponCode','PROMO10'))) ->> 'discountCents', '2000', 'Saint Cakes request applies its own coupon');
 select is(public.submit_order_request(pg_temp.request(jsonb_build_object('phone','(47) 98000-0302'))) ->> 'received', 'true', 'legacy submit_order_request is accepted');
@@ -215,7 +223,7 @@ reset role;
 insert into private.order_requests(tenant_id, payload, phone_digits)
   select current_setting('test.b_id')::uuid, '{}'::jsonb, '4798100' || lpad(g::text, 4, '0') from generate_series(1, 20) g;
 set local role anon;
-select throws_ok($$select public.submit_order_request('shop-b', pg_temp.request(jsonb_build_object('phone','(47) 98000-0399')))$$, 'P0001', 'REQUEST_LIMIT', 'shop-b submission limit reached');
+select throws_ok($$select public.submit_order_request('shop-b', pg_temp.request_b(jsonb_build_object('phone','(47) 98000-0399')))$$, 'P0001', 'REQUEST_LIMIT', 'shop-b submission limit reached');
 select is(public.submit_order_request('saint-cakes', pg_temp.request(jsonb_build_object('phone','(47) 98000-0398'))) ->> 'received', 'true', 'Saint Cakes still accepts requests');
 reset role;
 

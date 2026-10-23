@@ -13,6 +13,10 @@
   overflow-x:clip;scrollbar-width:thin;scrollbar-color:#cdbfa8 transparent;
 }
 .po *{scrollbar-width:thin;scrollbar-color:#cdbfa8 transparent}
+html[data-shop-theme="forest"] .po{--po-ink:#183d31;--po-cream:#f5f8f3;--po-surface:#fdfffc;--po-line:#d5dfd3;--po-muted:#52634e;--po-gold:#665521;--po-gold-deep:#554619;--po-gold-tint:#eee9d6}
+html[data-shop-theme="plum"] .po{--po-ink:#48253e;--po-cream:#fbf5f8;--po-surface:#fffdfd;--po-line:#e4d4df;--po-muted:#6b5663;--po-gold:#795326;--po-gold-deep:#67451e;--po-gold-tint:#f1e5d7}
+.po .po-hero-without-image{grid-template-columns:1fr}
+.po-hero-without-image .po-hero-text{max-width:760px}
 .po ::selection{background:#ecd9b4;color:var(--po-ink)}
 .po h1,.po h2,.po h3{font-family:var(--po-display);font-weight:400;color:var(--po-ink);text-wrap:balance}
 .po p{margin:0;line-height:1.55}

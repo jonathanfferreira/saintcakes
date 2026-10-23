@@ -2,7 +2,7 @@ import { addDays, calculateOrder } from './domain.ts';
 import type { Fulfillment, Order, OrderLine } from './domain';
 import type { PublicSettings } from './settings';
 
-export type RequestLine = Omit<OrderLine, 'id'>;
+export type RequestLine = Omit<OrderLine, 'id'> & { catalogItemId?: string };
 /** A ready-to-go item; the server prices it from the showcase and reserves the stock. */
 export type ShowcasePick = { showcaseId: string; quantity: number };
 export type OrderRequestInput = { customer: string; phone: string; date: string; time: string; fulfillment: Fulfillment; address: string; deliveryZone: string; notes: string; lines: RequestLine[]; showcase?: ShowcasePick[]; couponCode?: string; marketingOptIn?: boolean };

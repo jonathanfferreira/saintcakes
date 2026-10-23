@@ -14,6 +14,8 @@ import CustomersCentral from './CustomersCentral';
 import Coupons from './Coupons';
 import Showcase from './Showcase';
 import ShopSettingsForm from './ShopSettings';
+import StorefrontEditor from './StorefrontEditor';
+import { saintStorefront } from './storefront';
 import { confirmationMessage, defaultSettings, whatsappLink } from './settings';
 import { alertsEnabled, alertsSupported, enableAlerts } from './alerts';
 import { groupOrders, orderGroupLabels } from './metrics';
@@ -84,10 +86,12 @@ export default function App({ shared, account }: { shared?: SharedMode; account?
   const converting = useRef<string | null>(null);
   const requests = shared && canEdit ? shared.requests : [];
   const shop = shared?.settings ?? defaultSettings;
+  const storefront = shared ? shared.storefront : saintStorefront;
+  const shopScope = shared?.staff.shop?.slug ?? 'local-demo';
   const pendingCount = requests.length;
   useEffect(() => {
-    document.title = pendingCount ? `(${pendingCount}) Saint Cakes · Encomendas` : 'Saint Cakes · Encomendas';
-  }, [pendingCount]);
+    document.title = pendingCount ? `(${pendingCount}) ${storefront.name} · Encomendas` : `${storefront.name} · Encomendas`;
+  }, [pendingCount, storefront.name]);
   const raw = useRef(initial.raw);
   const [storageError, setStorageError] = useState(initial.error);
   const [recoveryExported, setRecoveryExported] = useState(false);
@@ -101,8 +105,8 @@ export default function App({ shared, account }: { shared?: SharedMode; account?
   const [editing, setEditing] = useState<Order | null | undefined>();
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
-  const [printPrefs, setPrintPrefs] = useState(loadPrefs);
-  useKitchenAutoPrint(orders, printPrefs.autoKitchen);
+  const [printPrefs, setPrintPrefs] = useState(() => loadPrefs(undefined, shopScope));
+  useKitchenAutoPrint(orders, printPrefs.autoKitchen, shopScope);
   const file = useRef<HTMLInputElement>(null);
   const today = localDateKey();
   const selected = orders.find(order => order.id === selectedId) ?? null;
@@ -204,19 +208,20 @@ export default function App({ shared, account }: { shared?: SharedMode; account?
 
   let content: ReactNode;
   if (editing !== undefined) {
-    content = canEdit ? <OrderForm key={editing?.id ?? 'new'} order={editing} date={today} reservedLineIds={requests.find(item => item.id === converting.current)?.reservedLineIds} onSave={save} onCancel={() => { converting.current = null; setEditing(undefined); }} /> : null;
+    content = canEdit ? <OrderForm catalog={storefront.catalog} key={editing?.id ?? 'new'} order={editing} date={today} reservedLineIds={requests.find(item => item.id === converting.current)?.reservedLineIds} onSave={save} onCancel={() => { converting.current = null; setEditing(undefined); }} /> : null;
   } else if (page === 'dashboard') {
     content = <Dashboard orders={orders} today={today} requestCount={shared && canEdit ? requests.length : null} onOpen={openOrder} onRequests={() => navigate('requests')} />;
   } else if (page === 'customers') {
     const showOrders = (search: string) => { navigate('orders'); setQuery(search); setStatus('all'); setShowPast(true); };
     // The persistent central needs the shared database; the local preview keeps the order-derived list.
-    content = shared && canEdit ? <CustomersCentral api={shared.growth} orders={orders} today={today} isOwner={isOwner} onShowOrders={showOrders} /> : <Customers orders={orders} today={today} onShowOrders={showOrders} />;
+    content = shared && canEdit ? <CustomersCentral shopSlug={shopScope} api={shared.growth} orders={orders} today={today} isOwner={isOwner} onShowOrders={showOrders} /> : <Customers orders={orders} today={today} onShowOrders={showOrders} />;
   } else if (page === 'showcase' && shared && canEdit) {
     content = <Showcase api={shared.growth} />;
   } else if (page === 'coupons' && shared && isOwner) {
     content = <Coupons api={shared.growth} />;
-  } else if (page === 'settings' && shared?.settings) {
-    content = <ShopSettingsForm settings={shared.settings} onSave={shared.saveSettings} />;
+  } else if (page === 'settings' && shared && isOwner) {
+    // Uma falha de atualização não desmonta o editor nem apaga o rascunho da loja.
+    content = <><StorefrontEditor storefront={storefront} slug={shared.staff.shop?.slug ?? ''} onSave={shared.saveStorefront} />{shared.settings ? <ShopSettingsForm joinvillePreset={shopScope === 'saint-cakes'} settings={shared.settings} onSave={shared.saveSettings} /> : <p role="alert" className="sc-alert">Não foi possível carregar as configurações de pagamento e entrega. Use Atualizar para tentar novamente.</p>}</>;
   } else if (page === 'team' && account?.team) {
     content = account.team;
   } else if (page === 'requests' && shared) {
@@ -239,7 +244,7 @@ export default function App({ shared, account }: { shared?: SharedMode; account?
         </div></div>
       <p className="sc-day-title"><strong>{humanDate(date, { weekday: 'long', day: 'numeric', month: 'long' })}</strong> · {kitchen.length} {kitchen.length === 1 ? 'comanda' : 'comandas'}</p>
       {prep.size > 0 && <div className="sc-card sc-prep"><h2>A preparar</h2><ul>{[...prep.values()].map(item => <li key={`${item.description}|${item.unit}`}><span>{item.description}</span><strong className="sc-num">{Number(item.quantity.toFixed(3)).toLocaleString('pt-BR')} {item.unit}</strong></li>)}</ul><p>Soma das comandas confirmadas e em produção; as prontas ficam de fora.</p></div>}
-      <PrinterPanel prefs={printPrefs} orders={orders} onChange={setPrintPrefs} />
+      <PrinterPanel scope={shopScope} prefs={printPrefs} orders={orders} onChange={setPrintPrefs} />
       {kitchen.length ? <div className="sc-comandas">{kitchen.map(order => <Comanda key={order.id} order={order} busy={busy || !!storageError} onAdvance={next => void updateStatus(order, next)} onPrint={() => printTickets([{ kind: 'kitchen', order }])} />)}</div>
         : <Empty title="Cozinha em dia." text="Encomendas confirmadas para esta data aparecem aqui como comandas, com o que preparar." />}
     </section>;
@@ -266,7 +271,7 @@ export default function App({ shared, account }: { shared?: SharedMode; account?
         {pastCount > 0 && !needle && <button type="button" className="sc-btn sc-btn-secondary sc-past-toggle" onClick={() => setShowPast(current => !current)}>{showPast ? 'Ocultar anteriores' : `Mostrar ${pastCount} anteriores`}</button>}
         <DataFooter />
       </div>
-      {selected && <OrderDetail order={selected} shop={shop} canEdit={canEdit} busy={busy || !!storageError} statusOptions={statusOptions(selected)} onClose={() => setSelectedId(null)} onEdit={() => beginEdit(selected)} onStatus={next => void updateStatus(selected, next)} onPrintKitchen={() => printTickets([{ kind: 'kitchen', order: selected }])} onPrintReceipt={() => printTickets([{ kind: 'receipt', order: selected, shop }])} />}
+      {selected && <OrderDetail shopName={storefront.name} order={selected} shop={shop} canEdit={canEdit} busy={busy || !!storageError} statusOptions={statusOptions(selected)} onClose={() => setSelectedId(null)} onEdit={() => beginEdit(selected)} onStatus={next => void updateStatus(selected, next)} onPrintKitchen={() => printTickets([{ kind: 'kitchen', order: selected }])} onPrintReceipt={() => printTickets([{ kind: 'receipt', order: selected, shop }])} />}
     </section>;
   }
 
@@ -280,14 +285,14 @@ export default function App({ shared, account }: { shared?: SharedMode; account?
   return <>
     <a className="skip" href="#main">Ir para o conteúdo</a>
     <div className={`sc-shell ${editing !== undefined ? 'is-editing' : ''}`}>
-      <aside className="sc-rail" aria-label="Saint Cakes">
-        <a className="sc-brand" href="#" onClick={e => { e.preventDefault(); navigate(isOwner || !shared ? 'dashboard' : 'orders'); }}><img src="/brand/saint-cakes.png" alt="" width="48" height="48" /><span>Saint Cakes<small>Encomendas</small></span></a>
+      <aside className="sc-rail" aria-label={storefront.name}>
+        <a className="sc-brand" href="#" onClick={e => { e.preventDefault(); navigate(isOwner || !shared ? 'dashboard' : 'orders'); }}>{storefront.logoUrl && <img src={storefront.logoUrl} alt="" width="48" height="48" />}<span>{storefront.name}<small>Encomendas</small></span></a>
         <nav aria-label="Navegação principal">{nav.map(p => <button key={p} type="button" aria-current={current === p ? 'page' : undefined} onClick={() => navigate(p)}><Icon name={pageIcons[p]} /><span><span className="sc-label-long">{labels[p]}</span><span className="sc-label-short" aria-hidden="true">{shortLabels[p] ?? labels[p]}</span></span>{badge(p) > 0 && <span className="sc-badge sc-num" aria-label={`${badge(p)} ${p === 'requests' ? 'novos' : 'para hoje'}`}>{badge(p)}</span>}</button>)}</nav>
         {accountBlock}
         {!shared && <p className="sc-rail-note">Prévia local · dados neste navegador</p>}
       </aside>
       <div className="sc-main">
-        <header className="sc-topbar"><img src="/brand/saint-cakes.png" alt="" width="36" height="36" /><strong>{labels[current]}</strong>{current === 'orders' && editing === undefined && canEdit && <button type="button" className="sc-icon-btn" onClick={() => beginEdit(null)} disabled={!!storageError || busy} aria-label="Nova encomenda"><Icon name="plus" /></button>}{account && <button type="button" className="sc-icon-btn" onClick={account.onRefresh} disabled={account.busy} aria-label="Atualizar agora"><Icon name="refresh" /></button>}</header>
+        <header className="sc-topbar">{storefront.logoUrl && <img src={storefront.logoUrl} alt="" width="36" height="36" /> }<strong>{labels[current]}</strong>{current === 'orders' && editing === undefined && canEdit && <button type="button" className="sc-icon-btn" onClick={() => beginEdit(null)} disabled={!!storageError || busy} aria-label="Nova encomenda"><Icon name="plus" /></button>}{account && <button type="button" className="sc-icon-btn" onClick={account.onRefresh} disabled={account.busy} aria-label="Atualizar agora"><Icon name="refresh" /></button>}</header>
         <main id="main">
           {storageError && <div className="sc-alert" role="alert">{storageError}</div>}
           {error && <div className="sc-alert sc-flash" role="alert"><span>{error}</span><button className="sc-btn sc-btn-quiet" onClick={() => setError('')}>Fechar</button></div>}
@@ -297,7 +302,7 @@ export default function App({ shared, account }: { shared?: SharedMode; account?
       </div>
       <nav className="sc-tabs" aria-label="Navegação">{tabs.map(p => <button key={p} type="button" aria-current={current === p || (p === 'more' && !tabs.includes(current)) ? 'page' : undefined} onClick={() => navigate(p)}><span className="sc-tab-icon"><Icon name={pageIcons[p]} />{badge(p) > 0 && <span className="sc-badge sc-num">{badge(p)}</span>}</span><span>{shortLabels[p] ?? labels[p]}</span></button>)}</nav>
     </div>
-    <PrintHost />
+    <PrintHost name={storefront.name} scope={shopScope} />
   </>;
 }
 
@@ -305,9 +310,9 @@ function Empty({ title, text, children }: { title: string; text: string; childre
   return <div className="sc-empty"><Icon name="orders" size={28} /><h2>{title}</h2><p>{text}</p>{children && <div>{children}</div>}</div>;
 }
 
-function OrderDetail({ order, shop, canEdit, busy, statusOptions, onClose, onEdit, onStatus, onPrintKitchen, onPrintReceipt }: { order: Order; shop: Pick<ShopSettings, 'pixKey' | 'pixHolder'>; canEdit: boolean; busy: boolean; statusOptions: [OrderStatus, string][]; onClose: () => void; onEdit: () => void; onStatus: (next: OrderStatus) => void; onPrintKitchen: () => void; onPrintReceipt: () => void }) {
+function OrderDetail({ shopName, order, shop, canEdit, busy, statusOptions, onClose, onEdit, onStatus, onPrintKitchen, onPrintReceipt }: { shopName: string; order: Order; shop: Pick<ShopSettings, 'pixKey' | 'pixHolder'>; canEdit: boolean; busy: boolean; statusOptions: [OrderStatus, string][]; onClose: () => void; onEdit: () => void; onStatus: (next: OrderStatus) => void; onPrintKitchen: () => void; onPrintReceipt: () => void }) {
   const money = orderMoney(order);
-  const whatsapp = order.status === 'cancelled' ? null : whatsappLink(order.phone, confirmationMessage(order, shop));
+  const whatsapp = order.status === 'cancelled' ? null : whatsappLink(order.phone, confirmationMessage(order, shop, shopName));
   const pay = depositState(order);
   return <aside className="sc-detail" aria-labelledby="detail-title">
     <div className="sc-detail-bar"><button type="button" className="sc-btn sc-btn-quiet" onClick={onClose}><Icon name="back" />Voltar à lista</button><span className="sc-num">#{String(order.number).padStart(3, '0')}</span></div>

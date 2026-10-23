@@ -14,6 +14,9 @@ import { SHOWCASE_BUCKET, showcasePhotoUrl } from './growth';
 import type { GrowthApi } from './growth';
 import type { ShopSettings } from './settings';
 import { announceRequests } from './alerts';
+import { parseStorefront } from './storefront';
+import type { Storefront } from './storefront';
+import { useStorefrontTheme } from './useStorefrontTheme';
 
 export default function WorkspaceGate({ client }: { client: SupabaseClient }) {
   const [session, setSession] = useState<Session | null>(null);
@@ -28,6 +31,8 @@ export default function WorkspaceGate({ client }: { client: SupabaseClient }) {
   const [production, setProduction] = useState<ProductionRecord[]>([]);
   const [requests, setRequests] = useState<OrderRequestRecord[]>([]);
   const [settings, setSettings] = useState<ShopSettings | null>(null);
+  const [storefront, setStorefront] = useState<Storefront | null>(null);
+  useStorefrontTheme(storefront);
   const knownRequests = useRef<Set<string> | null>(null);
   const [busy, setBusy] = useState(false);
   // Background reads only show 'Atualizando…'; actions are locked (busy) only while something is being saved.
@@ -41,9 +46,11 @@ export default function WorkspaceGate({ client }: { client: SupabaseClient }) {
   const closing = useRef(false);
 
   const clear = useCallback(() => {
+    document.title = 'Encomendas';
     generation.current += 1; lock.current = false; currentStaff.current = null;
-    setStaff(null); setRecords([]); setProduction([]); setRequests([]); setSettings(null); knownRequests.current = null; setLastSynced(null); setSyncError(''); setBusy(false); setSyncing(false);
+    setStaff(null); setStorefront(null); setRecords([]); setProduction([]); setRequests([]); setSettings(null); knownRequests.current = null; setLastSynced(null); setSyncError(''); setBusy(false); setSyncing(false);
   }, []);
+  useEffect(() => { if (storefront) document.title = `${storefront.name} · Encomendas`; }, [storefront?.name]);
 
   useEffect(() => {
     let alive = true, authVersion = 0;
@@ -68,9 +75,15 @@ export default function WorkspaceGate({ client }: { client: SupabaseClient }) {
     const nextStaff = parseStaff(await rpc(client, 'current_staff'));
     if (generation.current !== token || nextStaff.userId !== identity.current) throw new Error('ACCESS_DENIED');
     const before = currentStaff.current;
+    if (before && before.shop?.id !== nextStaff.shop?.id) {
+      // Uma transferência administrativa de loja também precisa descartar os dados da anterior.
+      setStaff(null); setStorefront(null); setRecords([]); setProduction([]); setRequests([]); setSettings(null); knownRequests.current = null;
+    }
     // Revoke cached data before the next read if permissions have changed.
     if (before && (before.role !== nextStaff.role || before.canViewFinancial !== nextStaff.canViewFinancial)) { setRecords([]); setProduction([]); setRequests([]); }
-    currentStaff.current = nextStaff; setStaff(nextStaff);
+    const nextStorefront = parseStorefront(await rpc(client, 'read_storefront'));
+    if (generation.current !== token) return;
+    currentStaff.current = nextStaff; setStaff(nextStaff); setStorefront(nextStorefront);
     const data = await rpc(client, nextStaff.canViewFinancial ? 'read_orders' : 'read_production_orders');
     if (generation.current !== token) return;
     // Only people who can create orders review public requests.
@@ -81,7 +94,7 @@ export default function WorkspaceGate({ client }: { client: SupabaseClient }) {
     const ids = new Set(inbox.map(item => item.id));
     const fresh = knownRequests.current ? inbox.filter(item => !knownRequests.current!.has(item.id)).length : 0;
     knownRequests.current = ids;
-    if (fresh) announceRequests(fresh);
+    if (fresh) announceRequests(fresh, nextStorefront.name, nextStaff.shop?.id, nextStorefront.logoUrl);
     setRequests(inbox); setSettings(shop);
     if (nextStaff.canViewFinancial) { setRecords(parseList(data, parseOrderRecord)); setProduction([]); }
     else { setProduction(parseList(data, parseProductionRecord)); setRecords([]); }
@@ -149,6 +162,17 @@ export default function WorkspaceGate({ client }: { client: SupabaseClient }) {
     try { setSettings(parseSettings(await rpc(client, 'save_settings', { p_settings: next }))); }
     catch (failure) { throw new Error(errorMessage(failure)); }
   }
+  async function saveStorefront(next: Storefront) {
+    if (lock.current || !identity.current) throw new Error('Aguarde a atualização em andamento.');
+    const token = generation.current;
+    lock.current = true; setBusy(true);
+    try {
+      const result = parseStorefront(await rpc(client, 'save_storefront', { p_storefront: next, p_expected_revision: next.revision }));
+      if (generation.current !== token) throw new Error('ACCESS_DENIED');
+      setStorefront(result);
+    } catch (failure) { throw new Error(errorMessage(failure)); }
+    finally { if (generation.current === token) { lock.current = false; setBusy(false); } }
+  }
   const growth: GrowthApi = useMemo(() => ({
     call: (name, args) => rpc(client, name, args),
     uploadPhoto: async (file, extension) => {
@@ -177,12 +201,12 @@ export default function WorkspaceGate({ client }: { client: SupabaseClient }) {
   }
 
   if (!authReady) return <main className="shared-login shared-auth-screen"><p role="status" className="shared-login-wait">Verificando acesso…</p></main>;
-  if (!session) return <main className="shared-login shared-auth-screen"><div className="shared-login-card"><img src="/brand/saint-cakes.png" alt="Saint Cakes" width="112" height="112" /><h1>Encomendas</h1><p>Entre com sua conta da equipe.</p><form onSubmit={event => void login(event)}><label className="sc-field">E-mail<input type="email" autoComplete="username" required value={email} onChange={event => setEmail(event.target.value)} disabled={authBusy} /></label><label className="sc-field">Senha<input type="password" autoComplete="current-password" required value={password} onChange={event => setPassword(event.target.value)} disabled={authBusy} /></label>{authError && <p role="alert" className="sc-alert">{authError}</p>}<button type="submit" className="sc-btn sc-btn-primary" disabled={authBusy}>{authBusy ? 'Entrando…' : 'Entrar'}</button></form></div></main>;
-  const viewKey = staff ? `${staff.userId}:${staff.role}:${staff.canViewFinancial}` : 'blocked';
+  if (!session) return <main className="shared-login shared-auth-screen"><div className="shared-login-card"><h1>Encomendas</h1><p>Entre com sua conta da equipe.</p><form onSubmit={event => void login(event)}><label className="sc-field">E-mail<input type="email" autoComplete="username" required value={email} onChange={event => setEmail(event.target.value)} disabled={authBusy} /></label><label className="sc-field">Senha<input type="password" autoComplete="current-password" required value={password} onChange={event => setPassword(event.target.value)} disabled={authBusy} /></label>{authError && <p role="alert" className="sc-alert">{authError}</p>}<button type="submit" className="sc-btn sc-btn-primary" disabled={authBusy}>{authBusy ? 'Entrando…' : 'Entrar'}</button></form></div></main>;
+  const viewKey = staff ? `${staff.shop?.id}:${staff.userId}:${staff.role}:${staff.canViewFinancial}` : 'blocked';
   const sync = busy || syncing ? 'Atualizando…' : lastSynced ? `Atualizado às ${new Date(lastSynced).toLocaleTimeString('pt-BR')}` : 'Aguardando atualização';
   const account = staff ? { name: staff.displayName, detail: `${roleLabels[staff.role]} · ${staff.canViewFinancial ? 'consulta valores' : 'produção'}`, sync, busy: busy || syncing || authBusy || exitFailed, loggingOut: authBusy, onRefresh: () => void refresh(), onLogout: () => void logout(), team: staff.role === 'owner' ? <TeamAccess client={client} staff={staff} onChange={refresh} /> : undefined } : null;
   const alerts = <>{authError && <p role="alert" className="sc-alert sc-gate-alert">{authError}</p>}{syncError && <p role="alert" className="sc-alert sc-gate-alert shared-sync-error">{syncError}</p>}</>;
   // People with financial access get the full app, whose shell carries the account controls.
-  if (staff?.canViewFinancial && account) return <>{alerts}<div key={viewKey}><App account={account} shared={{ staff, records, requests, settings, busy, syncError, lastSynced, save, updateStatus, resolveRequest, saveSettings, growth, refresh }} /></div></>;
-  return <><div className="sc-account-bar"><img src="/brand/saint-cakes.png" alt="" width="36" height="36" /><div><strong>{staff?.displayName ?? 'Conta da equipe'}</strong><small aria-live="polite">{staff ? `${roleLabels[staff.role]} · ${sync}` : sync}</small></div><button type="button" className="sc-btn sc-btn-secondary" onClick={() => void refresh()} disabled={busy || syncing || authBusy || exitFailed}>Atualizar</button><button type="button" className="sc-btn sc-btn-quiet" onClick={() => void logout()} disabled={authBusy}>{authBusy ? 'Saindo…' : 'Sair'}</button></div>{alerts}{!staff ? <main className="shared-blocked"><h1>Acesso da equipe</h1><p>{busy || syncing ? 'Carregando permissões…' : 'Não foi possível carregar seu acesso. Use Atualizar para tentar novamente ou solicite a revisão da sua conta.'}</p></main> : <div key={viewKey}><ProductionWorkspace records={production} busy={busy} updateStatus={async (record, status) => { await mutate('set_order_status', { p_id: record.order.id, p_status: status, p_expected_revision: record.revision }, false); }} /></div>}</>;
+  if (staff?.canViewFinancial && account && storefront) return <>{alerts}<div key={viewKey}><App account={account} shared={{ staff, storefront, saveStorefront, records, requests, settings, busy, syncError, lastSynced, save, updateStatus, resolveRequest, saveSettings, growth, refresh }} /></div></>;
+  return <><div className="sc-account-bar">{storefront?.logoUrl && <img src={storefront.logoUrl} alt="" width="36" height="36" />}<div><strong>{staff?.displayName ?? 'Conta da equipe'}</strong><small aria-live="polite">{staff ? `${roleLabels[staff.role]} · ${sync}` : sync}</small></div><button type="button" className="sc-btn sc-btn-secondary" onClick={() => void refresh()} disabled={busy || syncing || authBusy || exitFailed}>Atualizar</button><button type="button" className="sc-btn sc-btn-quiet" onClick={() => void logout()} disabled={authBusy}>{authBusy ? 'Saindo…' : 'Sair'}</button></div>{alerts}{!staff || !storefront ? <main className="shared-blocked"><h1>Acesso da equipe</h1><p>{busy || syncing ? 'Carregando permissões…' : 'Não foi possível carregar seu acesso. Use Atualizar para tentar novamente ou solicite a revisão da sua conta.'}</p></main> : <div key={viewKey}><ProductionWorkspace storefront={storefront} scope={staff.shop?.slug ?? staff.userId} records={production} busy={busy} updateStatus={async (record, status) => { await mutate('set_order_status', { p_id: record.order.id, p_status: status, p_expected_revision: record.revision }, false); }} /></div>}</>;
 }

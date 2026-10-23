@@ -496,3 +496,9 @@ Raios por papel, sem misturar:
 - **Don't** criar animação decorativa nova. A única animação autoral é a entrada da miniatura na caixa.
 - **Don't** usar sombra de deslocamento duro.
 - **Don't** bloquear ações pela atualização em segundo plano.
+
+## Personalização por loja (incremento local)
+
+A identidade Saint Cakes descrita acima continua sendo o padrão exclusivo da sua loja. Outras empresas configuram nome, apresentação, WhatsApp, logo/capa por HTTPS e catálogo próprios em Loja. Não preencher imagens ausentes com a marca ou fotos da Saint Cakes. O catálogo vazio mostra caminho para pedir orçamento.
+
+As paletas chocolate, verde floresta e ameixa alteram tokens sem criar outro sistema de componentes. O editor reutiliza cards, campos e botões existentes, com feedback de gravação e rascunho mantido em conflito/falha de atualização. Paletas livres, fontes próprias, upload de imagem e manifesto instalável por marca ficam fora deste incremento.

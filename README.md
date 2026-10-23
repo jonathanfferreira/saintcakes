@@ -1,5 +1,7 @@
 # Saint Cakes · Encomendas
 
+Evolução em desenvolvimento: plataforma multiclientes para **confeitarias e padarias**, **uma loja por conta** inicialmente. Fundação e personalização de identidade/catálogo estão implementadas e testadas localmente. O dono configura nome, contato, imagens, paleta e produtos na área Loja; o pedido público usa preços conferidos pelo servidor. Administração da plataforma e publicação desta evolução continuam pendentes. Veja [MULTITENANT.md](MULTITENANT.md).
+
 Aplicação em validação local, iniciada em 22/10/2026. React/TypeScript/Vite com demonstração no navegador e modo compartilhado Supabase. Git independente, origem `https://github.com/jonathanfferreira/saintcakes`. Publicação na Vercel autorizada em22/10/2026; configuração compartilhada usa projeto Supabase exclusivo. Contratação e operação real não confirmadas.
 
 ## Executar a demonstração

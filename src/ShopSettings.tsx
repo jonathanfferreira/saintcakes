@@ -8,7 +8,7 @@ import './Dashboard.css';
 type ZoneDraft = { key: string; name: string; fee: string };
 const moneyInput = (cents: number) => `${Math.floor(cents / 100)},${String(cents % 100).padStart(2, '0')}`;
 
-export default function ShopSettingsForm({ settings, onSave }: { settings: ShopSettings; onSave: (settings: ShopSettings) => Promise<void> }) {
+export default function ShopSettingsForm({ settings, onSave, joinvillePreset = false }: { settings: ShopSettings; onSave: (settings: ShopSettings) => Promise<void>; joinvillePreset?: boolean }) {
   const [pixKey, setPixKey] = useState(settings.pixKey);
   const [pixHolder, setPixHolder] = useState(settings.pixHolder);
   const [minLeadDays, setMinLeadDays] = useState(String(settings.minLeadDays));
@@ -52,7 +52,7 @@ export default function ShopSettingsForm({ settings, onSave }: { settings: ShopS
       </article>
       <article className="sc-card panel"><h2>Personalizados</h2>
         <label className="sc-field settings-lead">Antecedência mínima (dias)<input type="number" min={0} max={30} step={1} inputMode="numeric" value={minLeadDays} onChange={event => setMinLeadDays(event.target.value)} /></label>
-        <p className="hint">No site, itens sob orçamento só podem ser pedidos com essa antecedência. O catálogo diz pelo menos dois dias.</p>
+        <p className="hint">No site, itens sob orçamento só podem ser pedidos com essa antecedência.</p>
       </article>
       <article className="sc-card panel"><h2>Frete por bairro</h2>
         <p className="hint">Com bairros cadastrados, o cliente escolhe o bairro no site e o frete entra no pedido. Sem bairros, a equipe informa o frete. Use R$ 0,00 para entrega grátis.</p>
@@ -63,7 +63,7 @@ export default function ShopSettingsForm({ settings, onSave }: { settings: ShopS
         </div>)}</div>}
         <div className="zone-actions">
           <button type="button" className="sc-btn sc-btn-secondary" disabled={zones.length >= 60} onClick={() => setZones(current => [...current, { key: crypto.randomUUID(), name: '', fee: '' }])}>Adicionar bairro</button>
-          <button type="button" className="sc-btn sc-btn-secondary" disabled={missing.length === 0} onClick={() => { setZones(current => [...current, ...missing.map(name => ({ key: crypto.randomUUID(), name, fee: '' }))]); setError(''); setMessage(`${missing.length} bairros de Joinville adicionados. Preencha o frete de cada um (0,00 para grátis) ou remova os que vocês não atendem.`); }}>{missing.length === 0 ? 'Bairros de Joinville já carregados' : `Carregar ${missing.length === joinvilleBairros.length ? 'os 43' : `${missing.length} restantes dos`} bairros de Joinville`}</button>
+          {joinvillePreset && <button type="button" className="sc-btn sc-btn-secondary" disabled={missing.length === 0} onClick={() => { setZones(current => [...current, ...missing.map(name => ({ key: crypto.randomUUID(), name, fee: '' }))]); setError(''); setMessage(`${missing.length} bairros de Joinville adicionados. Preencha o frete de cada um (0,00 para grátis) ou remova os que vocês não atendem.`); }}>{missing.length === 0 ? 'Bairros de Joinville já carregados' : `Carregar ${missing.length === joinvilleBairros.length ? 'os 43' : `${missing.length} restantes dos`} bairros de Joinville`}</button>}
         </div>
         {settings.deliveryZones.length > 0 && <p className="hint zones-today">Hoje: {settings.deliveryZones.map(zone => `${zone.name} ${formatMoney(zone.feeCents)}`).join(' · ')}</p>}
       </article>
