@@ -6,17 +6,20 @@ import type { Order, OrderStatus } from './domain';
 import { decode, encode, load, mergeOrders, persist } from './storage';
 import type { SharedMode } from './shared';
 import { estimate, requestToOrder } from './requests';
+import { Customers, Dashboard } from './Dashboard';
 import type { OrderRequestRecord } from './requests';
 
 const stages: Record<OrderStatus, string> = { pending: 'A confirmar', confirmed: 'Confirmado', preparing: 'Em produção', ready: 'Pronto', delivered: 'Entregue', cancelled: 'Cancelado' };
-type Page = 'agenda' | 'orders' | 'production' | 'requests';
-const labels: Record<Page, string> = { agenda: 'Agenda', orders: 'Encomendas', production: 'Produção', requests: 'Pedidos do site' };
-function Icon({ name, size = 20 }: { name: 'calendar' | 'orders' | 'cake' | 'plus' | 'arrow' | 'search' | 'inbox'; size?: number }) {
+type Page = 'dashboard' | 'agenda' | 'orders' | 'production' | 'requests' | 'customers';
+const labels: Record<Page, string> = { dashboard: 'Painel', agenda: 'Agenda', orders: 'Encomendas', production: 'Produção', requests: 'Pedidos do site', customers: 'Clientes' };
+const pageIcons = { dashboard: 'chart', agenda: 'calendar', orders: 'orders', production: 'cake', requests: 'inbox', customers: 'users' } as const;
+function Icon({ name, size = 20 }: { name: 'calendar' | 'orders' | 'cake' | 'plus' | 'arrow' | 'search' | 'inbox' | 'chart' | 'users'; size?: number }) {
   const paths = {
     calendar: 'M8 2v4m8-4v4M3 10h18M5 4h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z',
     orders: 'M8 3H5v18h14V3h-3M8 2h8v4H8ZM8 11h8m-8 5h5',
     cake: 'M4 13h16v8H4ZM4 16c2 3 4-3 6 0s4-3 6 0 4 0 4 0M7 13V9h10v4M12 9V5m0-3v1',
     plus: 'M12 5v14M5 12h14', arrow: 'm9 5 7 7-7 7', search: 'M21 21l-5-5M18 10a8 8 0 1 1-16 0 8 8 0 0 1 16 0Z', inbox: 'M3 13h5l2 3h4l2-3h5M5 5h14l2 8v6H3v-6Z',
+    chart: 'M4 20h16M7 16v-5m5 5V6m5 10v-8', users: 'M16 20v-1a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v1M9.5 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8ZM21 20v-1a4 4 0 0 0-3-3.9M16 3.1a4 4 0 0 1 0 7.8',
   };
   return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={paths[name]} /></svg>;
 }
@@ -45,11 +48,12 @@ export default function App({ shared }: { shared?: SharedMode }) {
   const editRevision = useRef<number | null>(null);
   const converting = useRef<string | null>(null);
   const requests = shared && canEdit ? shared.requests : [];
-  const pages: Page[] = shared && canEdit ? ['agenda', 'orders', 'production', 'requests'] : ['agenda', 'orders', 'production'];
+  // App only renders for people with financial access, so the dashboard and customers are always available here.
+  const pages: Page[] = shared && canEdit ? ['dashboard', 'agenda', 'orders', 'production', 'requests', 'customers'] : ['dashboard', 'agenda', 'orders', 'production', 'customers'];
   const raw = useRef(initial.raw);
   const [storageError, setStorageError] = useState(initial.error);
   const [recoveryExported, setRecoveryExported] = useState(false);
-  const [page, setPage] = useState<Page>('agenda');
+  const [page, setPage] = useState<Page>('dashboard');
   const [date, setDate] = useState(localDateKey());
   const [query, setQuery] = useState('');
   const [status, setStatus] = useState('all');
@@ -123,7 +127,7 @@ export default function App({ shared }: { shared?: SharedMode }) {
   const liveDay = dayOrders.filter(o => o.status !== 'cancelled');
   const source = page === 'orders' ? orders : dayOrders;
   const needle = query.trim().toLocaleLowerCase('pt-BR');
-  const visible = source.filter(o => (status === 'all' || o.status === status) && (!needle || `${o.customer} ${o.phone} ${o.number} ${o.lines.map(l => l.description).join(' ')}`.toLocaleLowerCase('pt-BR').includes(needle))).sort((a, b) => `${a.date}${a.time}`.localeCompare(`${b.date}${b.time}`));
+  const visible = source.filter(o => (status === 'all' || o.status === status) && (!needle || `${o.customer} ${o.phone} ${o.phone.replace(/\D/g, '')} ${o.number} ${o.lines.map(l => l.description).join(' ')}`.toLocaleLowerCase('pt-BR').includes(needle))).sort((a, b) => `${a.date}${a.time}`.localeCompare(`${b.date}${b.time}`));
   const kitchen = dayOrders.filter(o => ['confirmed', 'preparing', 'ready'].includes(o.status));
   const production = new Map<string, { description: string; unit: string; quantity: number }>();
   for (const order of kitchen) for (const line of order.lines) {
@@ -143,8 +147,8 @@ export default function App({ shared }: { shared?: SharedMode }) {
     <a className="skip" href="#main">Ir para o conteúdo</a>
     <div className="app-shell">
       <aside className="sidebar">
-        <a className="brand" href="#" onClick={e => { e.preventDefault(); navigate('agenda'); }} aria-label="Saint Cakes, ir para agenda"><img src="/brand/saint-cakes.png" alt="Saint Cakes — Fabiano Budal" /><span>Encomendas</span></a>
-        <nav aria-label="Navegação principal">{pages.map(p => <button key={p} aria-current={page === p && editing === undefined ? 'page' : undefined} onClick={() => navigate(p)}><Icon name={p === 'agenda' ? 'calendar' : p === 'orders' ? 'orders' : p === 'requests' ? 'inbox' : 'cake'} />{labels[p]}{p === 'orders' && <span className="nav-count">{orders.length}</span>}{p === 'requests' && requests.length > 0 && <span className="nav-count nav-alert">{requests.length}</span>}</button>)}</nav>
+        <a className="brand" href="#" onClick={e => { e.preventDefault(); navigate('dashboard'); }} aria-label="Saint Cakes, ir para o painel"><img src="/brand/saint-cakes.png" alt="Saint Cakes — Fabiano Budal" /><span>Encomendas</span></a>
+        <nav aria-label="Navegação principal">{pages.map(p => <button key={p} aria-current={page === p && editing === undefined ? 'page' : undefined} onClick={() => navigate(p)}><Icon name={pageIcons[p]} />{labels[p]}{p === 'orders' && <span className="nav-count">{orders.length}</span>}{p === 'requests' && requests.length > 0 && <span className="nav-count nav-alert">{requests.length}</span>}</button>)}</nav>
         <div className="sidebar-bottom"><div className="small-seal">SC</div><p>Feito com cuidado.<br /><span>Do pedido à entrega.</span></p></div>
       </aside>
       <div className="workspace">
@@ -153,7 +157,7 @@ export default function App({ shared }: { shared?: SharedMode }) {
           {storageError && <div className="error" role="alert">{storageError}</div>}
           {error && <div className="error" role="alert">{error}<button className="quiet" onClick={() => setError('')}>Fechar aviso</button></div>}
           {message && <div className="notice" role="status">{message}<button className="quiet" onClick={() => setMessage('')}>Fechar</button></div>}
-          {editing !== undefined ? canEdit ? <OrderForm key={editing?.id ?? 'new'} order={editing} date={date} onSave={save} onCancel={() => { converting.current = null; setEditing(undefined); }} /> : editing ? <OrderDetails order={editing} onClose={() => setEditing(undefined)} /> : null : page === 'requests' && shared ? <RequestInbox requests={requests} busy={busy} onConvert={record => { if (busy) return; converting.current = record.id; editRevision.current = null; setEditing(requestToOrder(record, new Date().toISOString())); setError(''); }} onDismiss={async record => { try { await shared.resolveRequest(record.id, 'dismissed'); setMessage('Pedido do site descartado.'); } catch (e) { setError(e instanceof Error ? e.message : 'Não foi possível descartar.'); } }} /> : <>
+          {editing !== undefined ? canEdit ? <OrderForm key={editing?.id ?? 'new'} order={editing} date={date} onSave={save} onCancel={() => { converting.current = null; setEditing(undefined); }} /> : editing ? <OrderDetails order={editing} onClose={() => setEditing(undefined)} /> : null : page === 'dashboard' ? <Dashboard orders={orders} today={localDateKey()} requestCount={shared && canEdit ? requests.length : null} onOpen={beginEdit} onRequests={() => navigate('requests')} /> : page === 'customers' ? <Customers orders={orders} today={localDateKey()} onShowOrders={search => { navigate('orders'); setQuery(search); }} /> : page === 'requests' && shared ? <RequestInbox requests={requests} busy={busy} onConvert={record => { if (busy) return; converting.current = record.id; editRevision.current = null; setEditing(requestToOrder(record, new Date().toISOString())); setError(''); }} onDismiss={async record => { try { await shared.resolveRequest(record.id, 'dismissed'); setMessage('Pedido do site descartado.'); } catch (e) { setError(e instanceof Error ? e.message : 'Não foi possível descartar.'); } }} /> : <>
             <div className="page-heading"><div><h1>{page === 'agenda' ? 'Sua agenda, no ponto.' : page === 'production' ? 'O que preparar hoje?' : 'Cada pedido, bem cuidado.'}</h1><p className="muted">{page === 'agenda' ? 'Tudo organizado para cada encomenda sair com carinho.' : page === 'production' ? 'As quantidades do dia, reunidas para a cozinha.' : 'Consulte o histórico, confira os detalhes e acompanhe cada entrega.'}</p></div>{actions}</div>
             {page !== 'orders' && <section className="date-navigation" aria-label="Escolher data"><div className="date-title"><div><h2>{humanDate(date)}</h2><span className="muted">{humanDate(date, { weekday: 'long' })}</span></div><div className="date-controls"><button className="secondary" onClick={() => setDate(localDateKey())}>Hoje</button><label className="date-picker"><span className="sr-only">Data da agenda</span><input type="date" value={date} onChange={e => { if (/^\d{4}-\d{2}-\d{2}$/.test(e.target.value) && e.target.validity.valid) setDate(e.target.value); }} /></label></div></div><div className="week-strip"><button className="day-arrow" aria-label="Dia anterior" disabled={addDays(date, -1) === date} onClick={() => setDate(addDays(date, -1))}><span className="reverse"><Icon name="arrow" /></span></button>{[...new Set(Array.from({ length: 7 }, (_, i) => addDays(date, i - 3)))].map(d => <button key={d} className={`day ${d === date ? 'selected' : ''}`} aria-pressed={d === date} onClick={() => setDate(d)}><span>{humanDate(d, { weekday: 'short' }).replace('.', '')}</span><strong>{d.slice(-2)}</strong><span className="day-dot" data-active={orders.some(o => o.date === d && o.status !== 'cancelled')} /></button>)}<button className="day-arrow" aria-label="Próximo dia" disabled={addDays(date, 1) === date} onClick={() => setDate(addDays(date, 1))}><Icon name="arrow" /></button></div></section>}
             {page !== 'orders' && <div className="daily-line"><span><strong>{liveDay.length}</strong> encomenda{liveDay.length === 1 ? '' : 's'}</span><span>{liveDay.filter(o => o.fulfillment === 'pickup').length} para retirar</span><span>{liveDay.filter(o => o.fulfillment === 'delivery').length} para entregar</span><span className="daily-balance">Saldo a receber <strong>{formatMoney(pendingBalance)}</strong></span></div>}
