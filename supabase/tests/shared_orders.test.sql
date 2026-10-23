@@ -11,12 +11,12 @@ insert into auth.users(id, email) values
   ('00000000-0000-4000-8000-000000000004', 'outsider@example.invalid'),
   ('00000000-0000-4000-8000-000000000005', 'revoked@example.invalid'),
   ('00000000-0000-4000-8000-000000000006', 'limited@example.invalid');
-insert into private.staff_members(user_id, display_name, role, active, can_view_financial) values
-  ('00000000-0000-4000-8000-000000000001','Dona fictícia','owner',true,true),
-  ('00000000-0000-4000-8000-000000000002','Atendente fictícia','attendant',true,true),
-  ('00000000-0000-4000-8000-000000000003','Produção fictícia','production',true,false),
-  ('00000000-0000-4000-8000-000000000005','Revogada fictícia','owner',false,true),
-  ('00000000-0000-4000-8000-000000000006','Atendente limitada','attendant',true,false);
+insert into private.staff_members(tenant_id, user_id, display_name, role, active, can_view_financial) values
+  ('a0000000-0000-4000-8000-000000000001','00000000-0000-4000-8000-000000000001','Dona fictícia','owner',true,true),
+  ('a0000000-0000-4000-8000-000000000001','00000000-0000-4000-8000-000000000002','Atendente fictícia','attendant',true,true),
+  ('a0000000-0000-4000-8000-000000000001','00000000-0000-4000-8000-000000000003','Produção fictícia','production',true,false),
+  ('a0000000-0000-4000-8000-000000000001','00000000-0000-4000-8000-000000000005','Revogada fictícia','owner',false,true),
+  ('a0000000-0000-4000-8000-000000000001','00000000-0000-4000-8000-000000000006','Atendente limitada','attendant',true,false);
 
 create function pg_temp.order_fixture() returns jsonb language sql as $$
  select '{"id":"10000000-0000-4000-8000-000000000001","number":99999,

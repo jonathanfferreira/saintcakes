@@ -1,9 +1,10 @@
 import './OrderForm.css';
 import { useRef, useState, type FormEvent } from 'react';
 import { calculateOrder, formatMoney, parseMoney, validateOrder, type Order, type OrderLine } from './domain';
-import { catalog } from './catalog';
+import type { CatalogItem } from './catalog';
 
 type Props = {
+  catalog: CatalogItem[];
   order: Order | null;
   date: string;
   reservedLineIds?: string[];
@@ -23,7 +24,7 @@ const statuses: { value: Order['status']; label: string }[] = [
   { value: 'cancelled', label: 'Cancelado' },
 ];
 
-export default function OrderForm({ order, date, reservedLineIds = [], onSave, onCancel }: Props) {
+export default function OrderForm({ catalog, order, date, reservedLineIds = [], onSave, onCancel }: Props) {
   const [draft, setDraft] = useState<Order>(() => order ? { ...order, lines: order.lines.map(line => ({ ...line })) } : {
     id: crypto.randomUUID(), number: 0, customer: '', phone: '', date, time: '12:00',
     fulfillment: 'pickup', address: '', notes: '', lines: [], receivedCents: 0,

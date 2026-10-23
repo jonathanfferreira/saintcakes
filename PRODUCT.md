@@ -1,5 +1,7 @@
 # Saint Cakes — encomendas
 
+Direção atual confirmada em 23/10/2026: plataforma multiclientes para confeitarias e padarias, com uma loja por conta nesta primeira versão. Saint Cakes é a primeira empresa atendida. Dados, equipe e acesso financeiro permanecem separados por loja; catálogo e identidade já são configuráveis pelo dono no incremento local, com preços públicos conferidos pelo servidor. Plano, decisões confirmadas e limites de implantação em [MULTITENANT.md](MULTITENANT.md).
+
 Estado da continuação em 23/10/2026: a base ganhou formulário público, painel, configurações da loja e redesenho após o primeiro incremento. A branch `feat/cupons-clientes-vitrine` acrescenta as funcionalidades e regras em [GROWTH.md](GROWTH.md), verificadas localmente. As descrições históricas de próximos incrementos abaixo não comprovam o estado da implantação remota.
 
 Aplicação para a pessoa que atende encomendas pelo WhatsApp e hoje transcreve para papel. Plataforma: web responsiva, validação local com modos de demonstração e compartilhado; modo da superfície: Operate.

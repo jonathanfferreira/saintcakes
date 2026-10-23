@@ -58,7 +58,7 @@ export function settingsProblem(settings: ShopSettings): string | null {
 const weekday = (date: string) => new Intl.DateTimeFormat('pt-BR', { weekday: 'long', day: '2-digit', month: '2-digit' }).format(new Date(`${date}T12:00:00`));
 
 /** Ready-to-send WhatsApp confirmation, adapted to what has already been paid. */
-export function confirmationMessage(order: Order, settings: Pick<ShopSettings, 'pixKey' | 'pixHolder'>): string {
+export function confirmationMessage(order: Order, settings: Pick<ShopSettings, 'pixKey' | 'pixHolder'>, shopName = 'Saint Cakes'): string {
   const money = orderMoney(order);
   const first = order.customer.trim().split(/\s+/)[0];
   const lines = order.lines.map(line => `• ${line.quantity.toLocaleString('pt-BR')} ${line.unit} ${line.description}${line.unitPriceCents ? ` — ${formatMoney(calculateOrder([line]).totalCents)}` : ''}`);
@@ -68,7 +68,7 @@ export function confirmationMessage(order: Order, settings: Pick<ShopSettings, '
     : money.depositDueCents > 0 ? `Sinal de 50%: ${formatMoney(money.depositCents)}${order.receivedCents ? ` (recebido ${formatMoney(order.receivedCents)}, falta ${formatMoney(money.depositDueCents)})` : ''}${pix}\nA encomenda fica confirmada quando recebermos o sinal.`
     : `Sinal recebido. Saldo de ${formatMoney(money.balanceCents)} na ${order.fulfillment === 'pickup' ? 'retirada' : 'entrega'}.${pix}`;
   return [
-    `Olá, ${first}! Aqui é da Saint Cakes.`,
+    `Olá, ${first}! Aqui é da ${shopName}.`,
     '',
     `Sua encomenda #${String(order.number).padStart(3, '0')} para ${weekday(order.date)} às ${order.time} (${where}):`,
     ...lines,

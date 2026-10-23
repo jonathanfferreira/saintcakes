@@ -34,13 +34,13 @@ function chime() {
   } catch { /* Sound is a courtesy; the badge and list still show the request. */ }
 }
 
-export function announceRequests(count: number) {
+export function announceRequests(count: number, shopName = 'Encomendas', shopId = 'local', logoUrl = '') {
   chime();
   if (!alertsEnabled()) return;
-  const title = 'Saint Cakes · pedido novo do site';
+  const title = `${shopName} · pedido novo do site`;
   const options: NotificationOptions = {
     body: count === 1 ? 'Um cliente enviou uma encomenda pelo site.' : `${count} encomendas novas chegaram pelo site.`,
-    icon: '/icons/icon-192.png', tag: 'saint-cakes-requests',
+    ...(logoUrl ? { icon: logoUrl } : {}), tag: `${shopId}-requests`,
   };
   // Android browsers only show notifications through the service worker.
   const fallback = () => {

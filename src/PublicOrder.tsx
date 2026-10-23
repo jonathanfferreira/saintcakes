@@ -3,7 +3,10 @@ import type { FormEvent } from 'react';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import '@fontsource/gloock/400.css';
 import '@fontsource-variable/onest';
-import { catalog } from './catalog';
+import { parseStorefront, saintStorefront } from './storefront';
+import type { Storefront } from './storefront';
+import { useStorefrontTheme } from './useStorefrontTheme';
+import { whatsappLink } from './settings';
 import type { CatalogItem } from './catalog';
 import { addDays, formatMoney, localDateKey } from './domain';
 import type { Fulfillment, OrderLine } from './domain';
@@ -18,18 +21,16 @@ import './PublicOrder.css';
 
 type Custom = { key: string; description: string; quantity: string; unit: OrderLine['unit'] };
 type Section = { id: string; title: string; note: string; items: CatalogItem[] };
-const sections: Section[] = [
-  { id: 'bolos', title: 'Bolos', note: 'Linha party, vendidos por quilo.', items: catalog.filter(item => item.category.startsWith('Bolos')) },
-  { id: 'salgados', title: 'Mini salgados', note: 'Preço por unidade. Os botões somam de 10 em 10; você pode digitar outra quantidade.', items: catalog.filter(item => item.category.startsWith('Mini')) },
-];
+function catalogSections(catalog: CatalogItem[]): Section[] {
+  return [...new Set(catalog.map(item => item.category))].map((category, index) => ({ id: category === 'Bolos · linha party' ? 'bolos' : category === 'Mini salgados diversos' ? 'salgados' : `categoria-${index}`, title: category, note: '', items: catalog.filter(item => item.category === category) }));
+}
 const unitShort: Record<OrderLine['unit'], string> = { un: 'un', kg: 'kg', cento: 'cento' };
 // Steps match how each line is sold: cakes by half kilo, party savouries by ten.
-const step = (item: CatalogItem) => item.unit === 'kg' ? 0.5 : 10;
-const firstAdd = (item: CatalogItem) => item.unit === 'kg' ? 1 : 10;
-const shortName = (item: CatalogItem) => item.description.replace(' · linha party', '').replace(/^Bolo /, '');
+const step = (item: CatalogItem) => item.unit === 'kg' ? 0.5 : item.unit === 'un' && /^mini-\d+$/.test(item.id) && item.category === 'Mini salgados diversos' ? 10 : 1;
+const firstAdd = (item: CatalogItem) => item.unit === 'kg' ? 1 : step(item);
+const shortName = (item: CatalogItem) => item.category === 'Bolos · linha party' && /^party-\d+$/.test(item.id) ? item.description.replace(' · linha party', '').replace(/^Bolo /, '') : item.description;
 const qtyText = (value: number) => value.toLocaleString('pt-BR', { maximumFractionDigits: 3 });
 const parseQty = (value: string) => Number(value.trim().replace(',', '.'));
-const BADGE = '/brand/saint-cakes.png';
 const catalogStep = (item: CatalogItem) => ({ name: shortName(item), unit: item.unit, stepBy: step(item), first: firstAdd(item) });
 // Ready-to-go items sell by one (kg by half) and never past the stock on the shelf.
 const showcaseStep = (item: PublicShowcaseItem) => ({ name: item.name, unit: item.unit, stepBy: item.unit === 'kg' ? 0.5 : 1, first: Math.min(1, item.stock), max: item.stock });
@@ -62,14 +63,23 @@ function Stepper({ name, unit, stepBy, first, max = 1000, value, onChange }: Ste
   </div>;
 }
 
-function Thumb({ item, src }: { item?: CatalogItem; src?: string }) {
+function Thumb({ item, src, badge = '' }: { item?: CatalogItem; src?: string; badge?: string }) {
   // Items without their own photo wear the shop's badge rather than an initial that reads like a glitch.
   if (src) return <img className="po-thumb" src={src} alt="" />;
-  if (item) return <img className="po-thumb" src={item.photo ?? BADGE} alt="" />;
+  if (item?.photo || badge) return <img className="po-thumb" src={item?.photo || badge} alt="" />;
   return <span className="po-thumb po-thumb-mark" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M4 20h4L19 9l-4-4L4 16v4ZM13.5 6.5l4 4" /></svg></span>;
 }
 
-export default function PublicOrder({ client }: { client: SupabaseClient | null }) {
+export default function PublicOrder({ client, shop: shopSlug }: { client: SupabaseClient | null; shop: string }) {
+  const [storeState, setStoreState] = useState<'loading' | 'ready' | 'notFound' | 'error'>(() => !shopSlug ? 'notFound' : client ? 'loading' : shopSlug === 'saint-cakes' ? 'ready' : 'notFound');
+  const [storeRetry, setStoreRetry] = useState(0);
+  const [storefront, setStorefront] = useState<Storefront | null>(() => !client && shopSlug === 'saint-cakes' ? saintStorefront : null);
+  useStorefrontTheme(storefront);
+  const catalog = storefront?.catalog ?? [];
+  const sections = catalogSections(catalog);
+  const badge = storefront?.logoUrl ?? '';
+  const shopName = storefront?.name ?? 'Loja';
+  const shopWhatsapp = storefront?.whatsapp ? whatsappLink(storefront.whatsapp) : null;
   const today = localDateKey();
   const [quantities, setQuantities] = useState<Record<string, number>>({});
   const [added, setAdded] = useState<string[]>([]);
@@ -107,17 +117,28 @@ export default function PublicOrder({ client }: { client: SupabaseClient | null 
   const [shop, setShop] = useState<PublicSettings>({ minLeadDays: 2, deliveryZones: [] });
   const [zone, setZone] = useState('');
   useEffect(() => {
-    if (!client) return;
+    if (!client || !shopSlug) return;
     let alive = true;
-    rpc(client, 'public_settings').then(value => { if (alive) setShop(parsePublicSettings(value)); }).catch(() => { /* Keep defaults. */ });
+    // Sem confirmar a loja no servidor, não mostramos um catálogo de outra empresa como fallback.
+    setStoreState('loading');
+    Promise.all([rpc(client, 'public_settings', { p_shop: shopSlug }), rpc(client, 'public_storefront', { p_shop: shopSlug })]).then(([value, profile]) => {
+      if (!alive) return;
+      const next = parseStorefront(profile);
+      setShop(parsePublicSettings(value)); setStorefront(next); setActive(catalogSections(next.catalog)[0]?.id ?? 'sob-medida'); setStoreState('ready');
+    }).catch(failure => {
+      if (!alive) return;
+      const message = typeof failure === 'object' && failure && 'message' in failure ? String(failure.message) : '';
+      setStoreState(message.includes('SHOP_NOT_FOUND') ? 'notFound' : 'error');
+    });
     return () => { alive = false; };
-  }, [client]);
+  }, [client, shopSlug, storeRetry]);
+  useEffect(() => { document.title = storeState === 'ready' && storefront ? `${storefront.name} · Faça sua encomenda` : 'Encomendas'; }, [storeState, storefront]);
   // The showcase is optional: a failed call just hides the section. Picks are clamped to what is still on the shelf.
   function loadShowcase() {
-    if (!client) return;
+    if (!client || !shopSlug) return;
     const token = ++showcaseToken.current;
     setShowcaseBusy(true);
-    rpc(client, 'public_showcase').then(value => {
+    rpc(client, 'public_showcase', { p_shop: shopSlug }).then(value => {
       if (token !== showcaseToken.current) return;
       const items = (Array.isArray(value) ? value : []).flatMap(raw => { try { const item = parsePublicShowcaseItem(raw); return item.stock > 0 ? [item] : []; } catch { return []; } });
       setShowcase(items);
@@ -126,24 +147,24 @@ export default function PublicOrder({ client }: { client: SupabaseClient | null 
     }).catch(() => { if (token === showcaseToken.current) setShowcaseError('Não foi possível atualizar a pronta entrega. Sua seleção foi mantida.'); })
       .finally(() => { if (token === showcaseToken.current) setShowcaseBusy(false); });
   }
-  useEffect(() => { loadShowcase(); return () => { showcaseToken.current++; }; }, [client]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { loadShowcase(); return () => { showcaseToken.current++; }; }, [client, shopSlug]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
-    if (view !== 'shop' || !('IntersectionObserver' in window)) return;
+    if (storeState !== 'ready' || view !== 'shop' || !('IntersectionObserver' in window)) return;
     const observer = new IntersectionObserver(entries => {
       const visible = entries.filter(entry => entry.isIntersecting).sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top)[0];
       if (visible) setActive(visible.target.id);
     }, { rootMargin: '-30% 0px -60% 0px' });
     document.querySelectorAll('.po-section').forEach(section => observer.observe(section));
     return () => observer.disconnect();
-  }, [view, showcase.length]);
+  }, [view, showcase.length, storeState]);
   const fee = fulfillment === 'delivery' ? shop.deliveryZones.find(item => item.name === zone) : undefined;
 
   // The box lists items in the order the visitor picked them, so the phone bar shows the newest.
-  const chosen = useMemo(() => added.map(id => catalog.find(item => item.id === id)).filter((item): item is CatalogItem => !!item && quantities[item.id] > 0), [added, quantities]);
+  const chosen = useMemo(() => added.map(id => catalog.find(item => item.id === id)).filter((item): item is CatalogItem => !!item && quantities[item.id] > 0), [added, quantities, catalog]);
   const pickedShowcase = useMemo(() => showcase.filter(item => picks[item.id] > 0), [showcase, picks]);
   const showcaseLines = useMemo<RequestLine[]>(() => pickedShowcase.map(item => ({ description: item.name, quantity: picks[item.id], unit: item.unit, unitPriceCents: item.priceCents })), [pickedShowcase, picks]);
   const lines = useMemo<RequestLine[]>(() => [
-    ...chosen.map(item => ({ description: item.description, quantity: quantities[item.id], unit: item.unit, unitPriceCents: item.unitPriceCents })),
+    ...chosen.map(item => ({ catalogItemId: item.id, description: item.description, quantity: quantities[item.id], unit: item.unit, unitPriceCents: item.unitPriceCents })),
     ...custom.filter(line => line.description.trim()).map(line => ({ description: `${line.description.trim()} · sob orçamento`.slice(0, 180), quantity: parseQty(line.quantity), unit: line.unit, unitPriceCents: 0 })),
   ], [chosen, quantities, custom]);
   // The fee line is shown here but added by the server from the owner's table, never sent by the browser.
@@ -165,7 +186,7 @@ export default function PublicOrder({ client }: { client: SupabaseClient | null 
   useEffect(() => { couponToken.current++; setCouponBusy(false); }, [phone, subtotalCents]);
 
   async function askCoupon(code: string) {
-    return parseCouponQuote(await rpc(client as SupabaseClient, 'check_coupon', { p_code: code, p_phone: phone, p_subtotal_cents: subtotalCents }));
+    return parseCouponQuote(await rpc(client as SupabaseClient, 'check_coupon', { p_shop: shopSlug, p_code: code, p_phone: phone, p_subtotal_cents: subtotalCents }));
   }
   async function applyCoupon() {
     const code = couponInput.trim();
@@ -224,25 +245,32 @@ export default function PublicOrder({ client }: { client: SupabaseClient | null 
     if (problem) return fail(problem);
     // Bots fill hidden fields; show the same confirmation without sending anything.
     if (trap) { setSent(true); return; }
-    if (!client) return fail('Os pedidos pelo site estão indisponíveis no momento. Chame a Saint Cakes no WhatsApp.');
+    if (!client) return fail('Os pedidos pelo site estão indisponíveis no momento. Entre em contato com a loja.');
     setSending(true); setError('');
     try {
-      const result = await rpc(client, 'submit_order_request', { p_request: requestPayload(input) });
+      const result = await rpc(client, 'submit_order_request', { p_shop: shopSlug, p_request: { ...requestPayload(input), storefrontRevision: storefront?.revision } });
       const cents = typeof result === 'object' && result && 'discountCents' in result ? Number(result.discountCents) : 0;
       setDiscount(Number.isSafeInteger(cents) && cents > 0 ? cents : 0);
       setSent(true); window.scrollTo({ top: 0 });
     } catch (failure) {
       const message = typeof failure === 'object' && failure && 'message' in failure ? String(failure.message) : '';
+      if (message.includes('STOREFRONT_CONFLICT')) return fail('O catálogo foi atualizado pela loja. Recarregue esta página e confira os produtos e preços antes de enviar.');
       if (message.includes('SHOWCASE_STOCK')) { setShowcaseNeedsRefresh(true); loadShowcase(); return fail('O estoque da pronta entrega mudou. Aguarde a atualização, confira as quantidades da caixa e envie de novo.'); }
       if (message.includes('COUPON_')) { setCoupon(null); setCouponNote(couponMessage(failure)); return fail(`${couponMessage(failure)} Tiramos o cupom: você pode enviar o pedido sem ele.`); }
-      fail(message.includes('REQUEST_LIMIT') ? 'Recebemos muitos pedidos agora. Tente novamente em alguns minutos ou chame a Saint Cakes no WhatsApp.'
+      fail(message.includes('REQUEST_LIMIT') ? 'Recebemos muitos pedidos agora. Tente novamente em alguns minutos ou entre em contato com a loja.'
         : message.includes('INVALID_REQUEST') ? 'Confira os dados do pedido: data, bairro e WhatsApp com DDD.'
         : 'Não foi possível enviar. Confira a conexão e tente novamente.');
     } finally { setSending(false); }
   }
   function restart() { setQuantities({}); setAdded([]); setCustom([]); setPicks({}); setCoupon(null); setCouponInput(''); setCouponNote(''); setDiscount(0); setNotes(''); loadShowcase(); setSent(false); setError(''); setView('shop'); }
 
-  const header = <><header className="po-band"><div className="po-band-inner"><img src="/brand/saint-cakes.png" alt="Saint Cakes" width="56" height="56" /><span>Encomendas Saint Cakes</span></div></header>{showcaseError && <div role="alert" className="po-error">{showcaseError} <button type="button" className="po-link" disabled={showcaseBusy} onClick={loadShowcase}>{showcaseBusy ? 'Atualizando…' : 'Atualizar pronta entrega'}</button></div>}</>;
+  if (storeState !== 'ready') return <div className="po"><main className="po-done">
+    <h1>{storeState === 'loading' ? 'Carregando loja…' : storeState === 'notFound' ? 'Loja indisponível' : 'Não foi possível abrir a loja'}</h1>
+    <p role={storeState === 'loading' ? 'status' : 'alert'}>{storeState === 'loading' ? 'Estamos conferindo o endereço da loja.' : storeState === 'notFound' ? 'Este endereço não existe ou a loja está temporariamente indisponível. Confira o link com a loja.' : 'Confira sua conexão e tente novamente. Sua seleção foi mantida.'}</p>
+    {storeState === 'error' && <button type="button" className="po-primary" onClick={() => setStoreRetry(value => value + 1)}>Tentar novamente</button>}
+  </main></div>;
+
+  const header = <><header className="po-band"><div className="po-band-inner">{badge && <img src={badge} alt={shopName} width="56" height="56" />}<span>Encomendas {shopName}</span></div></header>{showcaseError && <div role="alert" className="po-error">{showcaseError} <button type="button" className="po-link" disabled={showcaseBusy} onClick={loadShowcase}>{showcaseBusy ? 'Atualizando…' : 'Atualizar pronta entrega'}</button></div>}</>;
 
   if (sent) return <div className="po">{header}<main className="po-done">
     <span className="po-done-mark"><Icon name="check" /></span>
@@ -255,7 +283,7 @@ export default function PublicOrder({ client }: { client: SupabaseClient | null 
 
   const boxSummary = <>
     <div className="po-box-thumbs" aria-hidden="true">
-      {[...chosen.map(item => ({ id: item.id, thumb: <Thumb item={item} /> })), ...pickedShowcase.map(item => ({ id: item.id, thumb: <Thumb src={showcasePhoto(item) ?? BADGE} /> }))].slice(-4).map(entry => <span key={entry.id} className={recent === entry.id ? 'po-pop' : ''}>{entry.thumb}</span>)}
+      {[...chosen.map(item => ({ id: item.id, thumb: <Thumb item={item} badge={badge} /> })), ...pickedShowcase.map(item => ({ id: item.id, thumb: <Thumb src={showcasePhoto(item) ?? badge} /> }))].slice(-4).map(entry => <span key={entry.id} className={recent === entry.id ? 'po-pop' : ''}>{entry.thumb}</span>)}
       {custom.some(line => line.description.trim()) && <span><Thumb /></span>}
     </div>
     <div className="po-box-text"><strong>{count ? <><span className="po-box-label">Sua caixa · </span>{count} {count === 1 ? 'item' : 'itens'}</> : 'Sua caixa está vazia'}</strong>
@@ -271,8 +299,8 @@ export default function PublicOrder({ client }: { client: SupabaseClient | null 
           <section aria-labelledby="po-box-title" className="po-panel">
             <h2 id="po-box-title">Sua caixa</h2>
             <ul className="po-review">
-              {pickedShowcase.map(item => <li key={item.id}><Thumb src={showcasePhoto(item) ?? BADGE} /><div><strong>{item.name}</strong><span>{formatMoney(item.priceCents)}/{unitShort[item.unit]} · pronta entrega</span></div><Stepper {...showcaseStep(item)} value={picks[item.id]} onChange={next => setPick(item, next)} /></li>)}
-              {chosen.map(item => <li key={item.id}><Thumb item={item} /><div><strong>{shortName(item)}</strong><span>{formatMoney(item.unitPriceCents)}/{unitShort[item.unit]}</span></div><Stepper {...catalogStep(item)} value={quantities[item.id]} onChange={next => setQuantity(item, next)} /></li>)}
+              {pickedShowcase.map(item => <li key={item.id}><Thumb src={showcasePhoto(item) ?? badge} /><div><strong>{item.name}</strong><span>{formatMoney(item.priceCents)}/{unitShort[item.unit]} · pronta entrega</span></div><Stepper {...showcaseStep(item)} value={picks[item.id]} onChange={next => setPick(item, next)} /></li>)}
+              {chosen.map(item => <li key={item.id}><Thumb item={item} badge={badge} /><div><strong>{shortName(item)}</strong><span>{formatMoney(item.unitPriceCents)}/{unitShort[item.unit]}</span></div><Stepper {...catalogStep(item)} value={quantities[item.id]} onChange={next => setQuantity(item, next)} /></li>)}
               {custom.filter(line => line.description.trim()).map(line => <li key={line.key}><Thumb /><div><strong>{line.description.trim()}</strong><span>{line.quantity} {unitShort[line.unit]} · sob orçamento</span></div><button type="button" className="po-link" onClick={() => setCustom(current => current.filter(item => item.key !== line.key))}>Remover</button></li>)}
             </ul>
             {!count && <p className="po-muted">Sua caixa ficou vazia. <button type="button" className="po-link" onClick={() => setView('shop')}>Voltar aos produtos</button></p>}
@@ -280,14 +308,14 @@ export default function PublicOrder({ client }: { client: SupabaseClient | null 
           <section aria-labelledby="po-when-title" className="po-panel">
             <h2 id="po-when-title">Quando e como</h2>
             <div className="po-choice" role="radiogroup" aria-label="Retirada ou entrega">
-              {(['pickup', 'delivery'] as Fulfillment[]).map(option => <label key={option} className={fulfillment === option ? 'is-on' : ''}><input type="radio" name="fulfillment" checked={fulfillment === option} onChange={() => setFulfillment(option)} /><strong>{option === 'pickup' ? 'Retirar na loja' : 'Receber em casa'}</strong><span>{option === 'pickup' ? 'Sem custo de entrega' : 'Joinville e região'}</span></label>)}
+              {(['pickup', 'delivery'] as Fulfillment[]).map(option => <label key={option} className={fulfillment === option ? 'is-on' : ''}><input type="radio" name="fulfillment" checked={fulfillment === option} onChange={() => setFulfillment(option)} /><strong>{option === 'pickup' ? 'Retirar na loja' : 'Receber em casa'}</strong><span>{option === 'pickup' ? 'Sem custo de entrega' : 'Consulte as regiões atendidas'}</span></label>)}
             </div>
             <div className="po-row">
               <label className="po-field">Data<input type="date" required min={minDate} max={addDays(today, REQUEST_HORIZON_DAYS)} value={date} onChange={event => setDate(event.target.value)} /></label>
               <label className="po-field">Horário<input type="time" required value={time} onChange={event => setTime(event.target.value)} /></label>
             </div>
             {quoted && shop.minLeadDays > 0 && <p className="po-hint">Itens sob orçamento precisam de pelo menos {shop.minLeadDays} dia{shop.minLeadDays === 1 ? '' : 's'} de antecedência.</p>}
-            {fulfillment === 'delivery' && shop.deliveryZones.length > 0 && <label className="po-field">Bairro<select required value={zone} onChange={event => setZone(event.target.value)}><option value="">Escolha o bairro</option>{[...shop.deliveryZones].sort((a, b) => a.name.localeCompare(b.name, 'pt-BR')).map(item => <option key={item.name} value={item.name}>{item.name} · {item.feeCents ? formatMoney(item.feeCents) : 'frete grátis'}</option>)}</select><small>Não encontrou seu bairro? Chame a Saint Cakes no WhatsApp.</small></label>}
+            {fulfillment === 'delivery' && shop.deliveryZones.length > 0 && <label className="po-field">Bairro<select required value={zone} onChange={event => setZone(event.target.value)}><option value="">Escolha o bairro</option>{[...shop.deliveryZones].sort((a, b) => a.name.localeCompare(b.name, 'pt-BR')).map(item => <option key={item.name} value={item.name}>{item.name} · {item.feeCents ? formatMoney(item.feeCents) : 'frete grátis'}</option>)}</select><small>Não encontrou seu bairro? Entre em contato com a loja.</small></label>}
             {fulfillment === 'delivery' && <label className="po-field">Endereço<textarea rows={2} maxLength={300} value={address} onChange={event => setAddress(event.target.value)} placeholder="Rua, número e complemento" />{!shop.deliveryZones.length && <small>O valor do frete é informado pela equipe.</small>}</label>}
           </section>
           <section aria-labelledby="po-you-title" className="po-panel">
@@ -297,13 +325,13 @@ export default function PublicOrder({ client }: { client: SupabaseClient | null 
               <label className="po-field">WhatsApp com DDD<input type="tel" autoComplete="tel" required maxLength={30} placeholder="(47) 99999-9999" value={phone} onChange={event => setPhone(event.target.value)} /></label>
             </div>
             <label className="po-field">Observações<textarea rows={3} maxLength={1000} value={notes} onChange={event => setNotes(event.target.value)} placeholder="Nome no bolo, decoração, alergias…" /></label>
-            <label className="po-check"><input type="checkbox" checked={marketing} onChange={event => setMarketing(event.target.checked)} /><span>Quero receber novidades e promoções da Saint Cakes pelo WhatsApp.</span></label>
+            <label className="po-check"><input type="checkbox" checked={marketing} onChange={event => setMarketing(event.target.checked)} /><span>Quero receber novidades e promoções da {shopName} pelo WhatsApp.</span></label>
             <label className="po-trap" aria-hidden="true">Site<input tabIndex={-1} autoComplete="off" value={trap} onChange={event => setTrap(event.target.value)} /></label>
           </section>
         </div>
         <aside className="po-total" aria-label="Total do pedido">
           <dl>
-            {shown.map((line, index) => <div key={index}><dt>{qtyText(line.quantity)} {unitShort[line.unit]} · {line.description.replace(' · linha party', '').replace(/^Bolo /, '')}</dt><dd>{line.unitPriceCents ? formatMoney(estimate([line]).totalCents) : 'a orçar'}</dd></div>)}
+            {shown.map((line, index) => <div key={index}><dt>{qtyText(line.quantity)} {unitShort[line.unit]} · {line.description.replace(' · linha party', '')}</dt><dd>{line.unitPriceCents ? formatMoney(estimate([line]).totalCents) : 'a orçar'}</dd></div>)}
           </dl>
           <div className="po-coupon">
             {coupon ? <div className="po-coupon-on"><p className="po-coupon-ok" role="status">Cupom {coupon.code}: − {formatMoney(coupon.discountCents)}</p><button type="button" className="po-link" onClick={() => { couponToken.current++; setCoupon(null); setCouponNote(''); }}>Remover cupom</button></div>
@@ -332,24 +360,25 @@ export default function PublicOrder({ client }: { client: SupabaseClient | null 
 
   return <div className="po">{header}
     <main className="po-shop">
-      <section className="po-hero">
+      <section className={`po-hero ${storefront?.heroUrl ? '' : 'po-hero-without-image'}`}>
         <div className="po-hero-text">
           <h1>Monte sua caixa</h1>
-          <p>Escolha bolos e salgados, diga quando e como quer receber. A equipe confirma tudo com você pelo WhatsApp.</p>
-          <ul className="po-facts"><li>Retirada na loja ou entrega em Joinville</li><li>Sinal de 50% para confirmar</li></ul>
+          <p>{storefront?.tagline || 'Escolha seus produtos. A equipe confirma sua encomenda pelo WhatsApp.'}</p>{shopWhatsapp && <a className="po-link" href={shopWhatsapp} target="_blank" rel="noopener noreferrer">Falar com {shopName} no WhatsApp</a>}
+          <ul className="po-facts"><li>Retirada na loja ou entrega a combinar</li><li>Sinal de 50% para confirmar</li></ul>
         </div>
-        <img className="po-hero-photo" src="/products/hero-bolo.webp" alt="Bolo de chocolate com morangos da Saint Cakes" width="1100" height="1467" fetchPriority="high" />
+        {storefront?.heroUrl && <img className="po-hero-photo" src={storefront.heroUrl} alt={`Produtos de ${shopName}`} width="1100" height="1467" fetchPriority="high" />}
       </section>
       <nav className="po-tabs" aria-label="Categorias">
         {[...(showcase.length ? [{ id: 'pronta-entrega', title: 'Pronta entrega' }] : []), ...sections.map(section => ({ id: section.id, title: section.title })), { id: 'sob-medida', title: 'Sob medida' }].map(tab => <a key={tab.id} href={`#${tab.id}`} aria-current={active === tab.id ? 'true' : undefined}>{tab.title}</a>)}
       </nav>
       <div className="po-layout">
         <div className="po-catalog">
+          {!catalog.length && !showcase.length && <p role="status">A loja ainda não publicou produtos no catálogo. Você pode solicitar um orçamento abaixo.</p>}
           {showcase.length > 0 && <section id="pronta-entrega" className="po-section" aria-labelledby="pronta-entrega-title">
             <div className="po-section-head"><h2 id="pronta-entrega-title">Pronta entrega</h2><p>O que já está pronto agora, com a quantidade disponível.</p></div>
             <div className="po-featured">
               {showcase.map(item => <article key={item.id} className={`po-card ${picks[item.id] ? 'is-in' : ''}`}>
-                <img className={showcasePhoto(item) ? '' : 'po-card-badge'} src={showcasePhoto(item) ?? BADGE} alt={showcasePhoto(item) ? item.name : ''} loading="lazy" />
+                {(showcasePhoto(item) || badge) && <img className={showcasePhoto(item) ? '' : 'po-card-badge'} src={showcasePhoto(item) ?? badge} alt={showcasePhoto(item) ? item.name : ''} loading="lazy" />}
                 <div className="po-card-body"><h3>{item.name}</h3>{item.description && <p>{item.description}</p>}
                   <p className="po-stock">{stockText(item)}</p>
                   <div className="po-card-foot"><span className="po-price">{formatMoney(item.priceCents)}<small>/{unitShort[item.unit]}</small></span><Stepper {...showcaseStep(item)} value={picks[item.id] ?? 0} onChange={next => setPick(item, next)} /></div></div>
@@ -393,7 +422,7 @@ export default function PublicOrder({ client }: { client: SupabaseClient | null 
         </div>
         <aside className="po-box" aria-label="Sua caixa">
           <div className="po-box-summary">{boxSummary}</div>
-          {count > 0 && <ul className="po-box-lines">{boxLines.map((line, index) => <li key={index}><span>{qtyText(line.quantity)} {unitShort[line.unit]}</span>{line.description.replace(' · linha party', '').replace(/^Bolo /, '')}</li>)}</ul>}
+          {count > 0 && <ul className="po-box-lines">{boxLines.map((line, index) => <li key={index}><span>{qtyText(line.quantity)} {unitShort[line.unit]}</span>{line.description.replace(' · linha party', '')}</li>)}</ul>}
           {count > 0 && money && money.depositCents > 0 && <p className="po-box-deposit">Sinal de 50%: {formatMoney(money.depositCents)}</p>}
           <button type="button" className="po-primary" disabled={!count} onClick={openCheckout}><Icon name="box" />Fechar pedido</button>
         </aside>

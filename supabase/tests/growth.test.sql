@@ -11,10 +11,10 @@ insert into auth.users(id, email) values
   ('00000000-0000-4000-8000-000000000031', 'owner@example.invalid'),
   ('00000000-0000-4000-8000-000000000032', 'attendant@example.invalid'),
   ('00000000-0000-4000-8000-000000000033', 'production@example.invalid');
-insert into private.staff_members(user_id, display_name, role, active, can_view_financial) values
-  ('00000000-0000-4000-8000-000000000031','Dona fictícia','owner',true,true),
-  ('00000000-0000-4000-8000-000000000032','Atendente fictícia','attendant',true,true),
-  ('00000000-0000-4000-8000-000000000033','Produção fictícia','production',true,true);
+insert into private.staff_members(tenant_id, user_id, display_name, role, active, can_view_financial) values
+  ('a0000000-0000-4000-8000-000000000001','00000000-0000-4000-8000-000000000031','Dona fictícia','owner',true,true),
+  ('a0000000-0000-4000-8000-000000000001','00000000-0000-4000-8000-000000000032','Atendente fictícia','attendant',true,true),
+  ('a0000000-0000-4000-8000-000000000001','00000000-0000-4000-8000-000000000033','Produção fictícia','production',true,true);
 
 create function pg_temp.as_user(id text) returns void language sql as $$ select set_config('request.jwt.claim.sub', id, true); $$;
 create function pg_temp.request(changes jsonb default '{}') returns jsonb language sql as $$
@@ -86,7 +86,7 @@ create temp table first_request as select id from private.order_requests where p
 grant select on first_request to authenticated;
 
 -- A later order without consent never withdraws it; dismissing gives stock and coupon back.
-select private.touch_customer('Cliente fictícia', '47980000001', 'equipe', null);
+select private.touch_customer('a0000000-0000-4000-8000-000000000001', 'Cliente fictícia', '47980000001', 'equipe', null);
 select ok((select marketing_opt_in from private.customers where phone_key = '47980000001'), 'missing answer keeps consent');
 set local role authenticated;
 select pg_temp.as_user('00000000-0000-4000-8000-000000000032');

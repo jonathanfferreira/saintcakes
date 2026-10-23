@@ -10,10 +10,10 @@ insert into auth.users(id, email) values
   ('00000000-0000-4000-8000-000000000021', 'owner@example.invalid'),
   ('00000000-0000-4000-8000-000000000022', 'attendant@example.invalid'),
   ('00000000-0000-4000-8000-000000000023', 'production@example.invalid');
-insert into private.staff_members(user_id, display_name, role, active, can_view_financial) values
-  ('00000000-0000-4000-8000-000000000021','Dona fictícia','owner',true,true),
-  ('00000000-0000-4000-8000-000000000022','Atendente fictícia','attendant',true,true),
-  ('00000000-0000-4000-8000-000000000023','Produção fictícia','production',true,false);
+insert into private.staff_members(tenant_id, user_id, display_name, role, active, can_view_financial) values
+  ('a0000000-0000-4000-8000-000000000001','00000000-0000-4000-8000-000000000021','Dona fictícia','owner',true,true),
+  ('a0000000-0000-4000-8000-000000000001','00000000-0000-4000-8000-000000000022','Atendente fictícia','attendant',true,true),
+  ('a0000000-0000-4000-8000-000000000001','00000000-0000-4000-8000-000000000023','Produção fictícia','production',true,false);
 
 create function pg_temp.as_user(id text) returns void language sql as $$ select set_config('request.jwt.claim.sub', id, true); $$;
 create function pg_temp.request(changes jsonb default '{}') returns jsonb language sql as $$
@@ -47,7 +47,7 @@ select throws_ok($$select public.save_settings('{"pixKey":"","pixHolder":"","min
 select throws_ok($$select public.save_settings('{"pixKey":"","pixHolder":"","minLeadDays":2,"deliveryZones":[],"extra":1}')$$, 'P0001', 'INVALID_SETTINGS', 'unknown keys rejected');
 select lives_ok($$select public.save_settings('{"pixKey":"chave-ficticia@example.invalid","pixHolder":"Loja fictícia","minLeadDays":2,"deliveryZones":[{"name":"Centro","feeCents":1000},{"name":"Retirada grátis","feeCents":0}]}')$$, 'owner saves settings');
 reset role;
-select is((select updated_by from private.shop_settings), '00000000-0000-4000-8000-000000000021'::uuid, 'editor recorded');
+select is((select updated_by from private.shop_settings where tenant_id = 'a0000000-0000-4000-8000-000000000001'), '00000000-0000-4000-8000-000000000021'::uuid, 'editor recorded');
 
 set local role anon;
 select is(public.public_settings(), '{"minLeadDays": 2, "deliveryZones": [{"name": "Centro", "feeCents": 1000}, {"name": "Retirada grátis", "feeCents": 0}]}'::jsonb, 'public settings omit Pix details');
