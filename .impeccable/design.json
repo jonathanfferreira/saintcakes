@@ -1,0 +1,963 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-10-23T02:36:51.325Z",
+  "title": "Design System: Saint Cakes",
+  "extensions": {
+    "colorMeta": {
+      "paper": {
+        "role": "neutral",
+        "displayName": "Creme (papel)",
+        "canonical": "#faf7f0",
+        "tonalRamp": [
+          "#13110d",
+          "#2b2923",
+          "#45423d",
+          "#66635d",
+          "#898680",
+          "#adaaa4",
+          "#d0cdc7",
+          "#f1eee7"
+        ]
+      },
+      "ink": {
+        "role": "primary",
+        "displayName": "Chocolate",
+        "canonical": "#392317",
+        "tonalRamp": [
+          "#1f0b02",
+          "#392317",
+          "#543c2f",
+          "#775d4f",
+          "#9b8071",
+          "#c1a495",
+          "#e4c7b7",
+          "#ffeade"
+        ]
+      },
+      "ink-hover": {
+        "role": "primary",
+        "displayName": "Chocolate em hover",
+        "canonical": "#4f3322",
+        "tonalRamp": [
+          "#220a00",
+          "#3c2111",
+          "#573b2a",
+          "#7a5c49",
+          "#9f7e6b",
+          "#c5a38f",
+          "#e9c5b1",
+          "#ffeade"
+        ]
+      },
+      "surface": {
+        "role": "neutral",
+        "displayName": "Superfície",
+        "canonical": "#fffdf9",
+        "tonalRamp": [
+          "#13110f",
+          "#2a2926",
+          "#44423f",
+          "#656360",
+          "#888682",
+          "#acaaa7",
+          "#cfcdca",
+          "#f0eeea"
+        ]
+      },
+      "white": {
+        "role": "neutral",
+        "displayName": "Campo de formulário",
+        "canonical": "#fff",
+        "tonalRamp": [
+          "#NaNNaNNaN",
+          "#NaNNaNNaN",
+          "#NaNNaNNaN",
+          "#NaNNaNNaN",
+          "#NaNNaNNaN",
+          "#NaNNaNNaN",
+          "#NaNNaNNaN",
+          "#NaNNaNNaN"
+        ]
+      },
+      "sunk": {
+        "role": "neutral",
+        "displayName": "Área rebaixada",
+        "canonical": "#f3ede2",
+        "tonalRamp": [
+          "#151109",
+          "#2d2820",
+          "#474239",
+          "#686359",
+          "#8b857c",
+          "#b0aaa0",
+          "#d3cdc2",
+          "#f4eee3"
+        ]
+      },
+      "line": {
+        "role": "neutral",
+        "displayName": "Linha",
+        "canonical": "#e5dccd",
+        "tonalRamp": [
+          "#171106",
+          "#2f281c",
+          "#494135",
+          "#6a6255",
+          "#8d8577",
+          "#b2aa9b",
+          "#d5cdbe",
+          "#f6edde"
+        ]
+      },
+      "line-strong": {
+        "role": "neutral",
+        "displayName": "Linha forte e campo",
+        "canonical": "#d6c8b3",
+        "tonalRamp": [
+          "#191002",
+          "#322716",
+          "#4c402f",
+          "#6e614f",
+          "#918471",
+          "#b6a994",
+          "#daccb7",
+          "#fbecd7"
+        ]
+      },
+      "muted": {
+        "role": "neutral",
+        "displayName": "Texto secundário",
+        "canonical": "#6b5c4c",
+        "tonalRamp": [
+          "#1b0f03",
+          "#332618",
+          "#4e3f30",
+          "#6f6050",
+          "#938372",
+          "#b8a896",
+          "#dccbb8",
+          "#fdebd9"
+        ]
+      },
+      "gold": {
+        "role": "secondary",
+        "displayName": "Dourado (foco, seleção, valores)",
+        "canonical": "#936326",
+        "tonalRamp": [
+          "#1e0d00",
+          "#3c2200",
+          "#5f3900",
+          "#875818",
+          "#ac7b40",
+          "#d3a064",
+          "#f8c286",
+          "#ffebd5"
+        ]
+      },
+      "gold-deep": {
+        "role": "secondary",
+        "displayName": "Dourado escuro (links e dicas)",
+        "canonical": "#74501e",
+        "tonalRamp": [
+          "#1d0e00",
+          "#3b2300",
+          "#5c3a00",
+          "#805b2a",
+          "#a57e4d",
+          "#cba371",
+          "#efc693",
+          "#ffebd3"
+        ]
+      },
+      "gold-tint": {
+        "role": "tertiary",
+        "displayName": "Dourado claro (seleção, notas)",
+        "canonical": "#f3e8d2",
+        "tonalRamp": [
+          "#181002",
+          "#302816",
+          "#4a412f",
+          "#6c624f",
+          "#8f8571",
+          "#b4aa95",
+          "#d7cdb7",
+          "#f8edd7"
+        ]
+      },
+      "gold-on-dark": {
+        "role": "tertiary",
+        "displayName": "Dourado claro sobre chocolate",
+        "canonical": "#f0d9a8",
+        "tonalRamp": [
+          "#1a1000",
+          "#362600",
+          "#533f0f",
+          "#756033",
+          "#998355",
+          "#bea879",
+          "#e2cb9b",
+          "#ffedc6"
+        ]
+      },
+      "gold-on-dark-hover": {
+        "role": "tertiary",
+        "displayName": "Dourado claro sobre chocolate, hover",
+        "canonical": "#f7e6c2",
+        "tonalRamp": [
+          "#1a1000",
+          "#342706",
+          "#4e4021",
+          "#706141",
+          "#948463",
+          "#b9a987",
+          "#ddcca9",
+          "#feedc9"
+        ]
+      },
+      "on-dark-muted": {
+        "role": "neutral",
+        "displayName": "Texto secundário sobre chocolate",
+        "canonical": "#e6d9c3",
+        "tonalRamp": [
+          "#191002",
+          "#312716",
+          "#4b412e",
+          "#6d624e",
+          "#908570",
+          "#b6a994",
+          "#d9ccb6",
+          "#faedd6"
+        ]
+      },
+      "on-dark-disabled": {
+        "role": "neutral",
+        "displayName": "Texto desativado sobre chocolate",
+        "canonical": "#d9cdb8",
+        "tonalRamp": [
+          "#181002",
+          "#312717",
+          "#4b412f",
+          "#6c624f",
+          "#908571",
+          "#b5a995",
+          "#d8ccb7",
+          "#f9edd7"
+        ]
+      },
+      "leaf": {
+        "role": "secondary",
+        "displayName": "Verde folha (feito, pago, confirmado)",
+        "canonical": "#2f5440",
+        "tonalRamp": [
+          "#00170a",
+          "#0a311f",
+          "#264b38",
+          "#476d58",
+          "#6a917a",
+          "#8eb69e",
+          "#b0d9c1",
+          "#d0fae1"
+        ]
+      },
+      "leaf-hover": {
+        "role": "secondary",
+        "displayName": "Verde folha em hover",
+        "canonical": "#264535",
+        "tonalRamp": [
+          "#00170b",
+          "#113021",
+          "#2b4a3a",
+          "#4c6c5a",
+          "#6e8f7d",
+          "#92b4a1",
+          "#b4d8c4",
+          "#d5f9e4"
+        ]
+      },
+      "leaf-tint": {
+        "role": "tertiary",
+        "displayName": "Verde folha claro",
+        "canonical": "#e6efe7",
+        "tonalRamp": [
+          "#0d130e",
+          "#242b25",
+          "#3d453e",
+          "#5e665f",
+          "#818981",
+          "#a5ada6",
+          "#c8d0c9",
+          "#e8f1e9"
+        ]
+      },
+      "danger": {
+        "role": "danger",
+        "displayName": "Terracota (alertas, cancelado)",
+        "canonical": "#9c493b",
+        "tonalRamp": [
+          "#2c0000",
+          "#530300",
+          "#732418",
+          "#994739",
+          "#c16a5b",
+          "#ea8f7e",
+          "#ffbaad",
+          "#ffe9e4"
+        ]
+      },
+      "danger-ink": {
+        "role": "danger",
+        "displayName": "Texto terracota",
+        "canonical": "#7d3426",
+        "tonalRamp": [
+          "#2b0000",
+          "#510800",
+          "#70281a",
+          "#964a3b",
+          "#bd6d5d",
+          "#e59280",
+          "#ffbaac",
+          "#ffe9e4"
+        ]
+      },
+      "danger-tint": {
+        "role": "danger",
+        "displayName": "Terracota claro",
+        "canonical": "#f7e8e3",
+        "tonalRamp": [
+          "#190f0c",
+          "#312622",
+          "#4b3f3b",
+          "#6d605c",
+          "#90837e",
+          "#b5a7a3",
+          "#d9cac5",
+          "#faebe6"
+        ]
+      },
+      "danger-border": {
+        "role": "danger",
+        "displayName": "Borda de ação destrutiva",
+        "canonical": "#e3c3b9",
+        "tonalRamp": [
+          "#200b05",
+          "#3a221b",
+          "#553b33",
+          "#785c53",
+          "#9c7f75",
+          "#c2a399",
+          "#e6c6bc",
+          "#ffe9e2"
+        ]
+      },
+      "amber": {
+        "role": "tertiary",
+        "displayName": "Âmbar (sinal pendente, a confirmar)",
+        "canonical": "#7a5414",
+        "tonalRamp": [
+          "#1c0e00",
+          "#3a2400",
+          "#5b3b00",
+          "#815b1d",
+          "#a67e43",
+          "#cda368",
+          "#f1c68a",
+          "#ffebd1"
+        ]
+      },
+      "amber-tint": {
+        "role": "tertiary",
+        "displayName": "Âmbar claro",
+        "canonical": "#f6ead2",
+        "tonalRamp": [
+          "#191001",
+          "#312814",
+          "#4b412d",
+          "#6c624d",
+          "#90856f",
+          "#b5aa93",
+          "#d8ccb5",
+          "#f9edd5"
+        ]
+      },
+      "purple-text": {
+        "role": "tertiary",
+        "displayName": "Roxo (em produção)",
+        "canonical": "#5b3f72",
+        "tonalRamp": [
+          "#1d012e",
+          "#351a49",
+          "#503466",
+          "#71558a",
+          "#9578af",
+          "#ba9cd6",
+          "#debffa",
+          "#f4e9ff"
+        ]
+      },
+      "purple-tint": {
+        "role": "tertiary",
+        "displayName": "Roxo claro (em produção)",
+        "canonical": "#ece4f2",
+        "tonalRamp": [
+          "#140f18",
+          "#2c2630",
+          "#463f4b",
+          "#67606c",
+          "#8a8390",
+          "#afa7b5",
+          "#d2cad8",
+          "#f3ebf9"
+        ]
+      },
+      "disabled-bg": {
+        "role": "neutral",
+        "displayName": "Fundo desativado",
+        "canonical": "#e9e1d4",
+        "tonalRamp": [
+          "#161108",
+          "#2e281e",
+          "#484137",
+          "#696257",
+          "#8c8579",
+          "#b1aa9d",
+          "#d5cdc0",
+          "#f5ede0"
+        ]
+      },
+      "disabled-text": {
+        "role": "neutral",
+        "displayName": "Texto desativado",
+        "canonical": "#8a7c6b",
+        "tonalRamp": [
+          "#1a0f03",
+          "#322718",
+          "#4d4031",
+          "#6e6150",
+          "#928472",
+          "#b7a896",
+          "#dacbb9",
+          "#fcecd9"
+        ]
+      },
+      "primary-disabled-bg": {
+        "role": "neutral",
+        "displayName": "Botão principal desativado (público)",
+        "canonical": "#d9cfbf",
+        "tonalRamp": [
+          "#171005",
+          "#2f281b",
+          "#494134",
+          "#6b6254",
+          "#8e8576",
+          "#b3a99a",
+          "#d6ccbc",
+          "#f7eddd"
+        ]
+      },
+      "primary-disabled-text": {
+        "role": "neutral",
+        "displayName": "Texto de botão principal desativado",
+        "canonical": "#5f5242",
+        "tonalRamp": [
+          "#1a0f03",
+          "#322718",
+          "#4c4031",
+          "#6e6150",
+          "#928472",
+          "#b7a896",
+          "#dacbb9",
+          "#fcecd9"
+        ]
+      },
+      "selection": {
+        "role": "neutral",
+        "displayName": "Seleção de texto",
+        "canonical": "#ecd9b4",
+        "tonalRamp": [
+          "#1a0f00",
+          "#352604",
+          "#50401f",
+          "#726140",
+          "#958461",
+          "#bba985",
+          "#decca7",
+          "#ffecc8"
+        ]
+      },
+      "scrollbar": {
+        "role": "neutral",
+        "displayName": "Barra de rolagem",
+        "canonical": "#cdbfa8",
+        "tonalRamp": [
+          "#1a1001",
+          "#322714",
+          "#4c412d",
+          "#6e614d",
+          "#91846f",
+          "#b7a992",
+          "#daccb5",
+          "#fbedd5"
+        ]
+      },
+      "bar-fill": {
+        "role": "tertiary",
+        "displayName": "Barra do gráfico de receita",
+        "canonical": "#d9bf8c",
+        "tonalRamp": [
+          "#1a0f00",
+          "#372600",
+          "#553e08",
+          "#77602f",
+          "#9b8351",
+          "#c1a775",
+          "#e5ca97",
+          "#ffecc8"
+        ]
+      },
+      "legacy-account": {
+        "role": "neutral",
+        "displayName": "Faixa de conta (CSS antigo, shared.css)",
+        "canonical": "#f1eade",
+        "tonalRamp": [
+          "#161109",
+          "#2d281f",
+          "#474238",
+          "#686258",
+          "#8c857a",
+          "#b1aa9f",
+          "#d4cdc1",
+          "#f5eee2"
+        ]
+      },
+      "print-ink": {
+        "role": "neutral",
+        "displayName": "Texto de impressão",
+        "canonical": "#222222",
+        "tonalRamp": [
+          "#121212",
+          "#292929",
+          "#424242",
+          "#636363",
+          "#868686",
+          "#ababab",
+          "#cecece",
+          "#eeeeee"
+        ]
+      },
+      "print-black": {
+        "role": "neutral",
+        "displayName": "Preto de impressão",
+        "canonical": "#000000",
+        "tonalRamp": [
+          "#121212",
+          "#292929",
+          "#424242",
+          "#636363",
+          "#868686",
+          "#ababab",
+          "#cecece",
+          "#eeeeee"
+        ]
+      },
+      "print-rule": {
+        "role": "neutral",
+        "displayName": "Filete de impressão",
+        "canonical": "#999999",
+        "tonalRamp": [
+          "#121212",
+          "#292929",
+          "#424242",
+          "#636363",
+          "#868686",
+          "#ababab",
+          "#cecece",
+          "#eeeeee"
+        ]
+      },
+      "print-hairline": {
+        "role": "neutral",
+        "displayName": "Filete claro de impressão",
+        "canonical": "#cccccc",
+        "tonalRamp": [
+          "#121212",
+          "#292929",
+          "#424242",
+          "#636363",
+          "#868686",
+          "#ababab",
+          "#cecece",
+          "#eeeeee"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "display": {
+        "displayName": "Display (Gloock, fluido)",
+        "purpose": "Título da página pública em celular."
+      },
+      "headline": {
+        "displayName": "Título de seção (32px)",
+        "purpose": "Títulos de seção da página pública."
+      },
+      "title": {
+        "displayName": "Título de card (21.6px)",
+        "purpose": "Nome de card; nome da caixa no desktop."
+      },
+      "body": {
+        "displayName": "Texto (Onest 16px)",
+        "purpose": "Corpo e campos."
+      },
+      "label": {
+        "displayName": "Rótulo (Onest 15px, 600)",
+        "purpose": "Botões, abas e rótulos de campo em destaque."
+      },
+      "hero-wide": {
+        "displayName": "Hero desktop (fluido)",
+        "purpose": "Título da página pública em desktop."
+      },
+      "checkout-title": {
+        "displayName": "Título do checkout (fluido)",
+        "purpose": "Fechar pedido."
+      },
+      "done-title": {
+        "displayName": "Título de confirmação (fluido)",
+        "purpose": "Pedido enviado."
+      },
+      "item-title": {
+        "displayName": "Nome de linha (19.2px)",
+        "purpose": "Nome de produto no cardápio e de encomenda na lista."
+      },
+      "price": {
+        "displayName": "Preço (20px)",
+        "purpose": "Preços, nome da faixa, valor do sinal."
+      },
+      "panel-title": {
+        "displayName": "Título de painel (24px)",
+        "purpose": "Títulos de painel e do checkout."
+      },
+      "total": {
+        "displayName": "Total (28px)",
+        "purpose": "Total estimado e valor de totais."
+      },
+      "caption": {
+        "displayName": "Legenda (13px)",
+        "purpose": "Legendas de campo, metadados e texto da barra escura."
+      },
+      "small": {
+        "displayName": "Pequeno (14px)",
+        "purpose": "Descrição de card e de linha, dica, texto de lista."
+      },
+      "lead": {
+        "displayName": "Lead (17px)",
+        "purpose": "Parágrafo do hero no celular; itens da comanda."
+      },
+      "lead-wide": {
+        "displayName": "Lead desktop (19px)",
+        "purpose": "Parágrafo do hero no desktop."
+      },
+      "micro": {
+        "displayName": "Micro (11px)",
+        "purpose": "Rótulos de aba do celular e do trilho."
+      },
+      "stage": {
+        "displayName": "Pílula (12px)",
+        "purpose": "Status e pagamento."
+      },
+      "name-sm": {
+        "displayName": "Nome (18px)",
+        "purpose": "Nome de item no painel."
+      },
+      "name-md": {
+        "displayName": "Nome (18.4px)",
+        "purpose": "Nome de cliente no painel."
+      },
+      "section-sm": {
+        "displayName": "Seção pequena (20.8px)",
+        "purpose": "Títulos de painel de produção."
+      },
+      "row-when": {
+        "displayName": "Hora da lista (22px)",
+        "purpose": "Horário em destaque na lista de encomendas e título de comanda."
+      },
+      "group-title": {
+        "displayName": "Grupo (22.4px)",
+        "purpose": "Cabeçalho de grupo da lista."
+      },
+      "head-title": {
+        "displayName": "Título de cabeçalho (26px)",
+        "purpose": "Cabeçalho do formulário e de seção."
+      },
+      "detail-title": {
+        "displayName": "Título de detalhe (28.8px)",
+        "purpose": "Mínimo do nome no detalhe do pedido."
+      },
+      "page-title-sm": {
+        "displayName": "Título de página (30px)",
+        "purpose": "Mínimo do título do painel."
+      },
+      "page-title": {
+        "displayName": "Título de página (30.4px)",
+        "purpose": "Mínimo do título das páginas do app."
+      },
+      "headline-lg": {
+        "displayName": "Título grande (36px)",
+        "purpose": "Máximo do cabeçalho do formulário."
+      },
+      "headline-xl": {
+        "displayName": "Título de detalhe (36.8px)",
+        "purpose": "Máximo do nome no detalhe."
+      },
+      "display-sm": {
+        "displayName": "Display (40px)",
+        "purpose": "Máximo do título do painel."
+      }
+    },
+    "shadows": [
+      {
+        "name": "bar-phone",
+        "value": "0 -6px 24px rgba(57,35,23,.18)",
+        "purpose": "Caixa fixa no celular da página pública."
+      },
+      {
+        "name": "bar-checkout",
+        "value": "0 -8px 24px rgba(57,35,23,.18)",
+        "purpose": "Barra de total do checkout no celular da página pública."
+      },
+      {
+        "name": "card-chosen",
+        "value": "0 6px 20px rgba(57,35,23,.08)",
+        "purpose": "Card escolhido na página pública, com anel leaf de 2px."
+      },
+      {
+        "name": "box-desktop",
+        "value": "0 8px 28px rgba(57,35,23,.07)",
+        "purpose": "Caixa sticky no desktop da página pública."
+      },
+      {
+        "name": "surface-app",
+        "value": "0 1px 2px rgba(57,35,23,.06), 0 8px 24px rgba(57,35,23,.06)",
+        "purpose": "Superfície do app: detalhe, comanda, linha selecionada (--sc-shadow)."
+      },
+      {
+        "name": "tabbar-app",
+        "value": "0 -8px 24px rgba(57,35,23,.16)",
+        "purpose": "Barra inferior de abas no celular do app."
+      }
+    ],
+    "motion": [
+      {
+        "name": "po-pop",
+        "value": "opacity 0 → 1; translateY(8px) scale(.4) → none; 0.42s cubic-bezier(.16, 1, .3, 1) both",
+        "purpose": "Página pública: miniatura recém-adicionada entra na caixa. Só sem reduced motion."
+      },
+      {
+        "name": "ease-public",
+        "value": "cubic-bezier(.2, .8, .2, 1)",
+        "purpose": "Página pública: transições de cor, borda e sombra (0.2–0.25s)."
+      },
+      {
+        "name": "ease-app",
+        "value": "cubic-bezier(.16, 1, .3, 1)",
+        "purpose": "App da equipe: bolinha da alternância (--sc-ease). Transições de cor e borda em 0.15s."
+      },
+      {
+        "name": "press",
+        "value": "scale(.97)",
+        "purpose": "Feedback ao toque em botão primário e Adicionar (página pública)."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "po-sm",
+        "value": "560px",
+        "purpose": "Página pública: campos em duas colunas."
+      },
+      {
+        "name": "po-md",
+        "value": "700px",
+        "purpose": "Página pública: cards em duas colunas; gutter 24px."
+      },
+      {
+        "name": "po-lg",
+        "value": "960px",
+        "purpose": "Página pública: hero em duas colunas; checkout com total à direita."
+      },
+      {
+        "name": "po-xl",
+        "value": "1000px",
+        "purpose": "Página pública: caixa como coluna sticky."
+      },
+      {
+        "name": "po-max",
+        "value": "1240px",
+        "purpose": "Página pública e painel do app: largura máxima."
+      },
+      {
+        "name": "app-420",
+        "value": "420px",
+        "purpose": "App: linhas de zona de entrega em uma coluna."
+      },
+      {
+        "name": "app-600",
+        "value": "600px",
+        "purpose": "App: padding de cartão de login e de produção."
+      },
+      {
+        "name": "app-640",
+        "value": "640px",
+        "purpose": "App: formulário com itens em quatro colunas."
+      },
+      {
+        "name": "app-700",
+        "value": "700px",
+        "purpose": "App: rail chocolate aparece; abas do celular somem."
+      },
+      {
+        "name": "app-1000",
+        "value": "1000px",
+        "purpose": "App: rótulos completos no trilho; detalhe em painel lateral."
+      },
+      {
+        "name": "app-1280",
+        "value": "1280px",
+        "purpose": "App: painel de detalhe mais largo (440px)."
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Ação principal. Pílula chocolate; 48px na página pública, 44px mínimo no app.",
+      "html": "<button class=\"ds-btn-primary\">Fechar pedido</button>",
+      "css": ".ds-btn-primary{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:48px;padding:0 22px;border:0;border-radius:999px;background:#392317;color:#faf7f0;font:600 15px/1 'Onest Variable',system-ui,sans-serif;white-space:nowrap;cursor:pointer;transition:background-color .2s cubic-bezier(.2,.8,.2,1)}.ds-btn-primary:hover:not(:disabled){background:#4f3322}.ds-btn-primary:disabled{background:#d9cfbf;color:#5f5242;cursor:not-allowed}.ds-btn-primary:focus-visible{outline:3px solid #936326;outline-offset:3px}.ds-btn-primary:active:not(:disabled){transform:scale(.97)}"
+    },
+    {
+      "name": "Secondary Button",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "Ação de apoio no app. Superfície com borda de linha forte.",
+      "html": "<button class=\"ds-btn-secondary\">Editar</button>",
+      "css": ".ds-btn-secondary{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:44px;padding:0 18px;border:1px solid #d6c8b3;border-radius:999px;background:#fffdf9;color:#392317;font:600 15px/1 'Onest Variable',system-ui,sans-serif;cursor:pointer;transition:border-color .15s}.ds-btn-secondary:hover:not(:disabled){border-color:#392317}.ds-btn-secondary:focus-visible{outline:3px solid #936326;outline-offset:2px}"
+    },
+    {
+      "name": "Stage Pill",
+      "kind": "chip",
+      "refersTo": "stage-preparing",
+      "description": "Status com ponto e texto. Uma cor por etapa; aqui, Em produção.",
+      "html": "<span class=\"ds-stage\">Em produção</span>",
+      "css": ".ds-stage{display:inline-flex;align-items:center;gap:6px;min-height:24px;padding:2px 10px;border-radius:999px;font:600 12px/1.2 'Onest Variable',system-ui,sans-serif;white-space:nowrap;background:#ece4f2;color:#5b3f72}.ds-stage::before{content:\"\";width:7px;height:7px;border-radius:50%;background:currentColor}"
+    },
+    {
+      "name": "Add Button",
+      "kind": "button",
+      "refersTo": "button-add",
+      "description": "Adicionar um item sem quantidade. Pílula com anel interno chocolate, 44px.",
+      "html": "<button class=\"ds-btn-add\">Adicionar</button>",
+      "css": ".ds-btn-add{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:44px;padding:0 18px 0 14px;border:0;border-radius:999px;background:transparent;color:#392317;box-shadow:inset 0 0 0 1.5px #392317;font:600 15px/1 'Onest Variable',system-ui,sans-serif;cursor:pointer;transition:background-color .2s cubic-bezier(.2,.8,.2,1),color .2s cubic-bezier(.2,.8,.2,1)}.ds-btn-add:hover{background:#392317;color:#faf7f0}.ds-btn-add:focus-visible{outline:3px solid #936326;outline-offset:3px}.ds-btn-add:active{transform:scale(.97)}"
+    },
+    {
+      "name": "Stepper",
+      "kind": "custom",
+      "refersTo": "stepper",
+      "description": "Quantidade em pílula chocolate. Botões de 40px dentro de 44px (desvio do alvo de 44px, não canonizado); campo editável.",
+      "html": "<div class=\"ds-stepper\" role=\"group\" aria-label=\"Quantidade\"><button type=\"button\" aria-label=\"Diminuir\">−</button><span>1 kg</span><button type=\"button\" aria-label=\"Aumentar\">+</button></div>",
+      "css": ".ds-stepper{display:inline-flex;align-items:center;gap:2px;min-height:44px;padding:2px;border-radius:999px;background:#392317;color:#faf7f0}.ds-stepper button{display:grid;place-items:center;width:40px;height:40px;padding:0;border:0;border-radius:50%;background:transparent;color:inherit;font:600 18px/1 'Onest Variable',system-ui,sans-serif;cursor:pointer}.ds-stepper button:hover{background:rgba(250,247,240,.16)}.ds-stepper button:focus-visible{outline:2px solid #f0d9a8;outline-offset:1px}.ds-stepper span{min-width:3.5ch;text-align:center;font:600 15px/1 'Onest Variable',system-ui,sans-serif;font-variant-numeric:tabular-nums}"
+    },
+    {
+      "name": "Box Bar",
+      "kind": "custom",
+      "refersTo": "box-bar",
+      "description": "Caixa fixa no rodapé do celular: miniaturas, contagem, total e Fechar pedido. Vira coluna sticky no desktop.",
+      "html": "<aside class=\"ds-box\"><div class=\"ds-box-text\"><strong>Sua caixa · 3 itens</strong><span>Total estimado</span></div><button class=\"ds-btn-on-dark\">Fechar pedido</button></aside>",
+      "css": ".ds-box{position:fixed;left:0;right:0;bottom:0;z-index:30;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 16px calc(10px + env(safe-area-inset-bottom));background:#392317;color:#faf7f0;box-shadow:0 -6px 24px rgba(57,35,23,.18)}.ds-box-text{display:grid;gap:2px;min-width:0;line-height:1.25}.ds-box-text strong{font:600 15px/1.25 'Onest Variable',system-ui,sans-serif;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.ds-box-text span{font-size:13px;color:#e6d9c3}.ds-btn-on-dark{flex:none;min-height:48px;padding:0 18px;border:0;border-radius:999px;background:#f0d9a8;color:#392317;font:600 15px/1 'Onest Variable',system-ui,sans-serif;cursor:pointer}.ds-btn-on-dark:focus-visible{outline:3px solid #f0d9a8;outline-offset:3px}"
+    },
+    {
+      "name": "Photo Card",
+      "kind": "card",
+      "refersTo": "card-photo",
+      "description": "Produto com foto certa do catálogo. Quadro de 20px, foto 4:3, anel leaf quando escolhido.",
+      "html": "<article class=\"ds-card\"><img src=\"/products/mini-pizza.webp\" alt=\"Mini pizza\" loading=\"lazy\"><div class=\"ds-card-body\"><h3>Mini pizza</h3><div class=\"ds-card-foot\"><span class=\"ds-price\">R$ 2,95<small>/un</small></span></div></div></article>",
+      "css": ".ds-card{display:flex;flex-direction:column;background:#fffdf9;border-radius:20px;box-shadow:inset 0 0 0 1px #e5dccd;overflow:hidden}.ds-card img{width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:20px 20px 0 0}.ds-card-body{display:grid;gap:8px;padding:16px 16px 20px;flex:1;align-content:start}.ds-card h3{margin:0;font:400 1.35rem/1.2 Gloock,Georgia,serif;color:#392317}.ds-card-foot{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:8px}.ds-price{font:400 1.25rem/1.2 Gloock,Georgia,serif;color:#392317;white-space:nowrap;font-variant-numeric:tabular-nums}.ds-price small{font:400 13px/1 'Onest Variable',system-ui,sans-serif;color:#6b5c4c;margin-left:2px}.ds-card.ds-chosen{box-shadow:inset 0 0 0 2px #2f5440,0 6px 20px rgba(57,35,23,.08)}"
+    },
+    {
+      "name": "Order Row",
+      "kind": "card",
+      "refersTo": "order-row",
+      "description": "Encomenda na lista agrupada: horário, nome, itens e pílulas. Selecionada, ganha borda chocolate.",
+      "html": "<button class=\"ds-row\"><span class=\"ds-row-when\"><strong>14:00</strong><span>Sáb</span></span><span class=\"ds-row-main\"><span class=\"ds-row-name\">Maria Silva</span><span class=\"ds-row-items\">1 kg Sonho de valsa</span></span></button>",
+      "css": ".ds-row{display:grid;grid-template-columns:64px minmax(0,1fr);gap:4px 14px;width:100%;padding:14px 14px 14px 12px;text-align:left;background:#fffdf9;border:1px solid #e5dccd;border-radius:16px;color:#392317;cursor:pointer;transition:border-color .15s,box-shadow .15s}.ds-row:hover{border-color:#d6c8b3;box-shadow:0 1px 2px rgba(57,35,23,.06),0 8px 24px rgba(57,35,23,.06)}.ds-row-when{display:grid;align-content:start;gap:2px}.ds-row-when strong{font:400 22px/1 Gloock,Georgia,serif;font-variant-numeric:tabular-nums}.ds-row-when span{font-size:12px;color:#6b5c4c}.ds-row-main{display:grid;gap:4px;min-width:0}.ds-row-name{font:400 1.2rem/1.2 Gloock,Georgia,serif;overflow-wrap:anywhere}.ds-row-items{font-size:14px;color:#6b5c4c;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}"
+    },
+    {
+      "name": "Comanda",
+      "kind": "card",
+      "refersTo": "comanda",
+      "description": "Ticket da produção: cabeçalho na cor da etapa, horário em Gloock, itens em 17px, sem valores.",
+      "html": "<article class=\"ds-comanda\"><header class=\"ds-comanda-head\"><span class=\"ds-comanda-time\">14:00</span><span>#012</span></header><h3>Maria Silva</h3><ul><li><strong>1 kg</strong> Sonho de valsa</li></ul></article>",
+      "css": ".ds-comanda{display:grid;gap:10px;padding:0 20px 20px;background:#fffdf9;border:1px solid #e5dccd;border-radius:16px;box-shadow:0 1px 2px rgba(57,35,23,.06),0 8px 24px rgba(57,35,23,.06);overflow:hidden}.ds-comanda-head{display:flex;justify-content:space-between;align-items:baseline;gap:12px;margin:0 -20px;padding:14px 20px 12px;background:#ece4f2}.ds-comanda-time{font:400 2rem/1 Gloock,Georgia,serif}.ds-comanda h3{margin:0;font:400 22px/1.2 Gloock,Georgia,serif;overflow-wrap:anywhere}.ds-comanda ul{display:grid;gap:8px;margin:4px 0 0;padding:12px 0 0;list-style:none;border-top:1px dashed #d6c8b3}.ds-comanda li{font-size:17px;line-height:1.35}.ds-comanda li strong{font-weight:700}"
+    },
+    {
+      "name": "Team Input",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "Campo do app: rótulo de 13px, entrada de 44px, raio de 10px, foco com contorno dourado.",
+      "html": "<label class=\"ds-field\">Nome<input class=\"ds-input\" value=\"\"></label>",
+      "css": ".ds-field{display:grid;gap:6px;font-size:13px;font-weight:600;color:#392317}.ds-input{width:100%;min-height:44px;padding:10px 12px;border:1px solid #d6c8b3;border-radius:10px;background:#fff;color:#392317;font:400 16px/1.4 'Onest Variable',system-ui,sans-serif}.ds-input:focus-visible{outline:3px solid #936326;outline-offset:1px;border-color:#936326}"
+    }
+  ],
+  "narrative": {
+    "northStar": "Pedir é encher uma caixa Saint Cakes",
+    "overview": "O app da equipe e a página pública `/pedido` usam o mesmo mundo: chocolate, creme, dourado, verde folha e terracota, com Gloock para títulos, nomes e valores, e Onest para o restante. Os tokens são compartilhados (`src/theme.css`, prefixo `--sc-*`; na página pública, `.po`). Regras sem marcação valem para as duas superfícies; regras marcadas valem só para a indicada.\n\n**Tese da página pública:** pedir é encher uma caixa Saint Cakes. A caixa fica sempre visível, enche conforme o cliente escolhe e é o caminho para fechar o pedido. A foto do produto é o ornamento; a página não tem decoração além disso.\n\n**App da equipe:** a semana da loja como uma lista viva, agrupada em Atrasadas, Hoje, Amanhã, Esta semana, Mais adiante e Anteriores, com o pedido selecionado aberto ao lado. Status é sempre pílula com ponto e texto, nunca só cor. O painel e a produção usam as mesmas peças.",
+    "keyCharacteristics": [
+      "Chocolate como trilho e barra; creme como papel; dourado para seleção, foco e valores.",
+      "Caixa sempre visível na página pública: faixa no celular, coluna no desktop.",
+      "Lista agrupada com detalhe ao lado no desktop e em tela cheia no celular.",
+      "Fotos reais de produtos em quadros de 20px; sem foto certa, linha de cardápio.",
+      "Controles e status em pílula; números tabulares.",
+      "Sem sombra dura; profundidade por anel interno de 1px e, no app, por sombra suave única.",
+      "Gloock e Onest self-hosted (`@fontsource`), sem host externo de fonte."
+    ],
+    "rules": [
+      {
+        "name": "The Leaf Is Done Rule",
+        "body": "O verde folha marca o que está feito, pago ou confirmado. Ação comum é chocolate. No app, os botões de WhatsApp são as únicas ações em verde folha, pois entregam a confirmação ao cliente.",
+        "section": "colors"
+      },
+      {
+        "name": "The Stage Pill Rule",
+        "body": "Cada etapa tem uma cor de pílula e um texto: A confirmar âmbar, Confirmado dourado, Em produção roxo, Pronto e Entregue verde folha, Cancelado terracota. A cor nunca aparece sem o texto.",
+        "section": "colors"
+      },
+      {
+        "name": "The Tabular Figure Rule",
+        "body": "Preços, quantidades, horários, totais e saldos usam algarismos tabulares, para que as colunas se alinhem na caixa, na lista e na comanda.",
+        "section": "typography"
+      },
+      {
+        "name": "The Hairline Rule",
+        "body": "Na página pública, a borda é um anel interno de 1px. Sombra só responde a estado ou fixa uma barra.",
+        "section": "elevation-depth"
+      }
+    ],
+    "dos": [
+      "Do manter o chocolate como ação principal e a caixa como única fonte do total exibido na página pública.",
+      "Do mostrar status sempre como pílula com ponto e texto; a cor sozinha não basta.",
+      "Do manter alvos de no mínimo 44px para controles, abas, links e botões de ícone.",
+      "Do manter foco visível: 3px dourado com deslocamento de 3px.",
+      "Do usar algarismos tabulares em preços, quantidades, horários e totais.",
+      "Do deixar a gravação em curso ocupar as ações até concluir, e só ela; a leitura em segundo plano não entra nisso.",
+      "Do manter o resumo de produção sem valores para quem não tem acesso financeiro."
+    ],
+    "donts": [
+      "Don't usar verde folha como botão de ação comum; ele marca o feito, o pago e o confirmado.",
+      "Don't usar o verde folha como cor de alerta ou de cancelamento.",
+      "Don't carregar fontes de host externo; Gloock e Onest vêm pelo pacote do build.",
+      "Don't usar Georgia ou Arial como fonte de títulos ou de corpo do app; são fallbacks.",
+      "Don't usar foto sem procedência certa em card; sem foto, a linha do cardápio e a miniatura da marca.",
+      "Don't criar animação decorativa nova. A única animação autoral é a entrada da miniatura na caixa.",
+      "Don't usar sombra de deslocamento duro.",
+      "Don't bloquear ações pela atualização em segundo plano."
+    ]
+  }
+}

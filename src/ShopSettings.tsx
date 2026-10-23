@@ -3,6 +3,7 @@ import type { FormEvent } from 'react';
 import { formatMoney, parseMoney } from './domain';
 import { joinvilleBairros, settingsProblem } from './settings';
 import type { ShopSettings } from './settings';
+import './Dashboard.css';
 
 type ZoneDraft = { key: string; name: string; fee: string };
 const moneyInput = (cents: number) => `${Math.floor(cents / 100)},${String(cents % 100).padStart(2, '0')}`;
@@ -41,34 +42,34 @@ export default function ShopSettingsForm({ settings, onSave }: { settings: ShopS
     finally { setSaving(false); }
   }
 
-  return <section className="dashboard shop-settings" aria-labelledby="settings-title">
-    <div className="page-heading"><div><h1 id="settings-title">Loja</h1><p className="muted">Dados usados nas mensagens de WhatsApp e no site de pedidos.</p></div></div>
+  return <section className="dash shop-settings" aria-labelledby="settings-title">
+    <header className="dash-head"><div><h1 id="settings-title">Loja</h1><p>Dados usados nas mensagens de WhatsApp e no site de pedidos.</p></div></header>
     <form onSubmit={event => void submit(event)} className="settings-form">
-      <article className="panel"><h2>Pix para o sinal</h2>
-        <p className="muted">Aparece na mensagem de confirmação enviada ao cliente. Deixe em branco para não incluir.</p>
-        <div className="settings-grid"><label>Chave Pix<input value={pixKey} maxLength={140} onChange={event => setPixKey(event.target.value)} placeholder="CNPJ, e-mail, telefone ou chave aleatória" /></label>
-          <label>Titular<input value={pixHolder} maxLength={100} onChange={event => setPixHolder(event.target.value)} placeholder="Nome que aparece no Pix" /></label></div>
+      <article className="sc-card panel"><h2>Pix para o sinal</h2>
+        <p className="hint">Aparece na mensagem de confirmação enviada ao cliente. Deixe em branco para não incluir.</p>
+        <div className="settings-grid"><label className="sc-field">Chave Pix<input value={pixKey} maxLength={140} onChange={event => setPixKey(event.target.value)} placeholder="CNPJ, e-mail, telefone ou chave aleatória" /></label>
+          <label className="sc-field">Titular<input value={pixHolder} maxLength={100} onChange={event => setPixHolder(event.target.value)} placeholder="Nome que aparece no Pix" /></label></div>
       </article>
-      <article className="panel"><h2>Personalizados</h2>
-        <label className="settings-lead">Antecedência mínima (dias)<input type="number" min={0} max={30} step={1} inputMode="numeric" value={minLeadDays} onChange={event => setMinLeadDays(event.target.value)} /></label>
-        <p className="muted">No site, itens sob orçamento só podem ser pedidos com essa antecedência. O catálogo diz pelo menos dois dias.</p>
+      <article className="sc-card panel"><h2>Personalizados</h2>
+        <label className="sc-field settings-lead">Antecedência mínima (dias)<input type="number" min={0} max={30} step={1} inputMode="numeric" value={minLeadDays} onChange={event => setMinLeadDays(event.target.value)} /></label>
+        <p className="hint">No site, itens sob orçamento só podem ser pedidos com essa antecedência. O catálogo diz pelo menos dois dias.</p>
       </article>
-      <article className="panel"><h2>Frete por bairro</h2>
-        <p className="muted">Com bairros cadastrados, o cliente escolhe o bairro no site e o frete entra no pedido. Sem bairros, a equipe informa o frete. Use R$ 0,00 para entrega grátis.</p>
+      <article className="sc-card panel"><h2>Frete por bairro</h2>
+        <p className="hint">Com bairros cadastrados, o cliente escolhe o bairro no site e o frete entra no pedido. Sem bairros, a equipe informa o frete. Use R$ 0,00 para entrega grátis.</p>
         {zones.length > 0 && <div className="zones">{zones.map(zone => <div className="zone-row" key={zone.key}>
-          <label>Bairro<input value={zone.name} maxLength={60} onChange={event => setZones(current => current.map(item => item.key === zone.key ? { ...item, name: event.target.value } : item))} /></label>
-          <label>Frete (R$)<input inputMode="decimal" value={zone.fee} placeholder="0,00" onChange={event => setZones(current => current.map(item => item.key === zone.key ? { ...item, fee: event.target.value } : item))} /></label>
-          <button type="button" className="quiet" onClick={() => setZones(current => current.filter(item => item.key !== zone.key))}>Remover</button>
+          <input aria-label="Bairro" className="sc-input" value={zone.name} maxLength={60} onChange={event => setZones(current => current.map(item => item.key === zone.key ? { ...item, name: event.target.value } : item))} />
+          <input aria-label={`Frete (R$) ${zone.name}`.trim()} className="sc-input fee" inputMode="decimal" value={zone.fee} placeholder="0,00" onChange={event => setZones(current => current.map(item => item.key === zone.key ? { ...item, fee: event.target.value } : item))} />
+          <button type="button" className="sc-btn sc-btn-quiet" aria-label={`Remover ${zone.name || 'bairro'}`} onClick={() => setZones(current => current.filter(item => item.key !== zone.key))}>Remover</button>
         </div>)}</div>}
         <div className="zone-actions">
-          <button type="button" className="secondary" disabled={zones.length >= 60} onClick={() => setZones(current => [...current, { key: crypto.randomUUID(), name: '', fee: '' }])}>Adicionar bairro</button>
-          <button type="button" className="secondary" disabled={missing.length === 0} onClick={() => { setZones(current => [...current, ...missing.map(name => ({ key: crypto.randomUUID(), name, fee: '' }))]); setError(''); setMessage(`${missing.length} bairros de Joinville adicionados. Preencha o frete de cada um (0,00 para grátis) ou remova os que vocês não atendem.`); }}>{missing.length === 0 ? 'Bairros de Joinville já carregados' : `Carregar ${missing.length === joinvilleBairros.length ? 'os 43' : `${missing.length} restantes dos`} bairros de Joinville`}</button>
+          <button type="button" className="sc-btn sc-btn-secondary" disabled={zones.length >= 60} onClick={() => setZones(current => [...current, { key: crypto.randomUUID(), name: '', fee: '' }])}>Adicionar bairro</button>
+          <button type="button" className="sc-btn sc-btn-secondary" disabled={missing.length === 0} onClick={() => { setZones(current => [...current, ...missing.map(name => ({ key: crypto.randomUUID(), name, fee: '' }))]); setError(''); setMessage(`${missing.length} bairros de Joinville adicionados. Preencha o frete de cada um (0,00 para grátis) ou remova os que vocês não atendem.`); }}>{missing.length === 0 ? 'Bairros de Joinville já carregados' : `Carregar ${missing.length === joinvilleBairros.length ? 'os 43' : `${missing.length} restantes dos`} bairros de Joinville`}</button>
         </div>
-        {settings.deliveryZones.length > 0 && <p className="muted">Hoje: {settings.deliveryZones.map(zone => `${zone.name} ${formatMoney(zone.feeCents)}`).join(' · ')}</p>}
+        {settings.deliveryZones.length > 0 && <p className="hint zones-today">Hoje: {settings.deliveryZones.map(zone => `${zone.name} ${formatMoney(zone.feeCents)}`).join(' · ')}</p>}
       </article>
-      {error && <p role="alert" className="error">{error}</p>}
-      {message && <p role="status" className="notice">{message}</p>}
-      <div><button className="primary" disabled={saving}>{saving ? 'Salvando…' : 'Salvar configurações'}</button></div>
+      {error && <p role="alert" className="sc-alert">{error}</p>}
+      {message && <p role="status" className="sc-notice">{message}</p>}
+      <div><button className="sc-btn sc-btn-primary" disabled={saving}>{saving ? 'Salvando…' : 'Salvar configurações'}</button></div>
     </form>
   </section>;
 }

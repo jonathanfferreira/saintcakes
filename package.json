@@ -12,6 +12,8 @@
     "lint": "oxlint src"
   },
   "dependencies": {
+    "@fontsource-variable/onest": "5.3.1",
+    "@fontsource/gloock": "5.3.0",
     "@supabase/supabase-js": "2.118.0",
     "react": "19.3.1",
     "react-dom": "19.3.1"

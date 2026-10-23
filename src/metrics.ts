@@ -69,6 +69,24 @@ export function topProducts(orders: Order[], month: string, limit = 5) {
   return [...products.values()].sort((a, b) => b.totalCents - a.totalCents || b.quantity - a.quantity).slice(0, limit);
 }
 
+export type OrderGroupId = 'late' | 'today' | 'tomorrow' | 'week' | 'later' | 'past';
+export const orderGroupLabels: Record<OrderGroupId, string> = { late: 'Atrasadas', today: 'Hoje', tomorrow: 'Amanhã', week: 'Esta semana', later: 'Mais adiante', past: 'Anteriores' };
+/**
+ * The team's working list: open orders from earlier days stay visible as late until delivered
+ * or cancelled; finished past orders move to "Anteriores". Each group is sorted by date and time.
+ */
+export function groupOrders(orders: Order[], today: string): { id: OrderGroupId; orders: Order[] }[] {
+  const tomorrow = addDays(today, 1), weekEnd = addDays(today, 7);
+  const groups: Record<OrderGroupId, Order[]> = { late: [], today: [], tomorrow: [], week: [], later: [], past: [] };
+  for (const order of orders) {
+    const done = order.status === 'delivered' || order.status === 'cancelled';
+    const id: OrderGroupId = order.date < today ? (done ? 'past' : 'late') : order.date === today ? 'today' : order.date === tomorrow ? 'tomorrow' : order.date <= weekEnd ? 'week' : 'later';
+    groups[id].push(order);
+  }
+  const byTime = (a: Order, b: Order) => `${a.date}${a.time}`.localeCompare(`${b.date}${b.time}`);
+  return (Object.keys(groups) as OrderGroupId[]).map(id => ({ id, orders: groups[id].sort(id === 'past' ? (a, b) => byTime(b, a) : byTime) }));
+}
+
 export type Customer = { key: string; name: string; phone: string; orders: number; cancelled: number; totalCents: number; balanceCents: number; firstDate: string; lastDate: string; nextDate: string | null };
 /** Group orders by phone digits, or by name when no phone was recorded. The most recent order names the customer. */
 export function customers(orders: Order[], today: string): Customer[] {

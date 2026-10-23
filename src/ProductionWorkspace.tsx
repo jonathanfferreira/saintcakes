@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { localDateKey } from './domain';
+import { addDays, localDateKey } from './domain';
 import type { OrderStatus } from './domain';
 import type { ProductionRecord } from './shared';
+import Comanda from './Comanda';
 
 export default function ProductionWorkspace({ records, busy, updateStatus }: { records: ProductionRecord[]; busy: boolean; updateStatus: (record: ProductionRecord, status: OrderStatus) => Promise<void> }) {
   const [date, setDate] = useState(localDateKey);
@@ -12,10 +13,14 @@ export default function ProductionWorkspace({ records, busy, updateStatus }: { r
     try { await updateStatus(record, status); }
     catch (failure) { setError(failure instanceof Error ? failure.message : 'Não foi possível atualizar o pedido.'); }
   }
-  return <main className="shared-production"><header><img src="/brand/saint-cakes.png" alt="Saint Cakes" width="80" height="80" /><div><h1>Produção</h1><p>Encomendas e preparo do dia</p></div></header>
-    <label>Data dos pedidos<input type="date" value={date} onChange={event => setDate(event.target.value)} /></label>
-    {error && <p role="alert" className="error">{error}</p>}
+  const today = localDateKey();
+  const base = date || today;
+  const heading = new Date(`${base}T12:00:00`).toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' });
+  return <main className="shared-production"><header className="shared-production-bar"><img src="/brand/saint-cakes.png" alt="Saint Cakes" width="56" height="56" /><h1>Produção</h1>
+    <div className="shared-day" role="group" aria-label="Data dos pedidos"><button type="button" className="sc-btn sc-btn-secondary" onClick={() => setDate(addDays(base, -1))}>Dia anterior</button><button type="button" className="sc-btn sc-btn-secondary" disabled={date === today} onClick={() => setDate(today)}>Hoje</button><button type="button" className="sc-btn sc-btn-secondary" onClick={() => setDate(addDays(base, 1))}>Próximo dia</button><label className="sc-field"><span className="shared-sr">Data dos pedidos</span><input type="date" value={date} onChange={event => setDate(event.target.value)} /></label></div></header>
+    <p className="shared-day-title" aria-live="polite">{heading}</p>
+    {error && <p role="alert" className="sc-alert">{error}</p>}
     {!orders.length && <p className="shared-empty">Nenhuma encomenda nesta data.</p>}
-    {orders.map(record => { const order = record.order; const next = order.status === 'confirmed' ? 'preparing' : order.status === 'preparing' ? 'ready' : null; return <article className="production-card" key={order.id}><h2>{order.time} · {order.customer}</h2><p>Pedido #{order.number} · {order.fulfillment === 'pickup' ? 'Retirada' : 'Entrega'} · {{ pending: 'A confirmar', confirmed: 'Confirmado', preparing: 'Em produção', ready: 'Pronto', delivered: 'Entregue', cancelled: 'Cancelado' }[order.status]}</p><ul>{order.lines.map(line => <li key={line.id}><strong>{line.quantity} {line.unit}</strong> — {line.description}</li>)}</ul>{order.notes && <p className="production-notes">{order.notes}</p>}{next && <button className="primary" disabled={busy} onClick={() => void advance(record, next)}>{next === 'preparing' ? 'Iniciar produção' : 'Marcar como pronto'}</button>}</article>; })}
+    {orders.length > 0 && <div className="sc-comandas">{orders.map(record => <Comanda key={record.order.id} order={record.order} busy={busy} onAdvance={next => void advance(record, next)} />)}</div>}
   </main>;
 }

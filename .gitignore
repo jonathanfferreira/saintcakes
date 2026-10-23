@@ -7,3 +7,4 @@ verification/
 !.env.example
 *.tsbuildinfo
 .vercel/
+.impeccable/review/

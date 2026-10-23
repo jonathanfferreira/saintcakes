@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { customers, monthSummary, overdueBalances, pendingDeposits, revenueByMonth, shiftMonth, topProducts, upcoming } from './metrics.ts';
+import { customers, groupOrders, monthSummary, overdueBalances, pendingDeposits, revenueByMonth, shiftMonth, topProducts, upcoming } from './metrics.ts';
 import type { Order } from './domain';
 
 let sequence = 0;
@@ -57,4 +57,19 @@ test('customers groups by phone digits, names by latest order and ignores cancel
   const bia = list.find(customer => customer.name === 'Bia')!;
   assert.deepEqual([bia.orders, bia.cancelled, bia.totalCents, bia.nextDate], [0, 1, 0, null]);
   assert.equal(list[0].key, 'tel:47900000001');
+});
+
+test('groupOrders keeps open past orders as late and sorts finished ones newest first', () => {
+  const list = [
+    order({ customer: 'Hoje tarde', date: '2026-10-22', time: '16:00' }),
+    order({ customer: 'Hoje cedo', date: '2026-10-22', time: '09:00' }),
+    order({ customer: 'Atrasada', date: '2026-10-20', status: 'confirmed' }),
+    order({ customer: 'Entregue antiga', date: '2026-10-10', status: 'delivered' }),
+    order({ customer: 'Cancelada recente', date: '2026-10-21', status: 'cancelled' }),
+    order({ customer: 'Amanhã', date: '2026-10-23' }),
+    order({ customer: 'Semana fim', date: '2026-10-29' }),
+    order({ customer: 'Depois', date: '2026-10-30' }),
+  ];
+  const groups = Object.fromEntries(groupOrders(list, today).map(group => [group.id, group.orders.map(item => item.customer)]));
+  assert.deepEqual(groups, { late: ['Atrasada'], today: ['Hoje cedo', 'Hoje tarde'], tomorrow: ['Amanhã'], week: ['Semana fim'], later: ['Depois'], past: ['Cancelada recente', 'Entregue antiga'] });
 });

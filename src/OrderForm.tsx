@@ -1,3 +1,4 @@
+import './OrderForm.css';
 import { useRef, useState, type FormEvent } from 'react';
 import { calculateOrder, formatMoney, parseMoney, validateOrder, type Order, type OrderLine } from './domain';
 import { catalog } from './catalog';
@@ -107,127 +108,171 @@ export default function OrderForm({ order, date, onSave, onCancel }: Props) {
     }
   }
 
+  const money = (cents?: number) => summary && cents !== undefined ? formatMoney(cents) : '—';
+  const receivedCents = summary ? summary.totalCents - summary.balanceCents : undefined;
+  const fulfillmentOptions: { value: Order['fulfillment']; title: string; hint: string }[] = [
+    { value: 'pickup', title: 'Retirada', hint: 'Cliente busca na loja' },
+    { value: 'delivery', title: 'Entrega', hint: 'Leva até o endereço' },
+  ];
+
   return (
     <section className="order-form" aria-labelledby="order-form-title">
-      <div className="page-heading">
+      <div className="of-heading">
         <div>
           <h1 id="order-form-title">{order?.number ? `Editar encomenda #${order.number}` : 'Nova encomenda'}</h1>
-          <p className="muted">Registre os detalhes combinados com o cliente.</p>
+          <p className="of-hint">Registre os detalhes combinados com o cliente.</p>
         </div>
-        <button type="button" className="secondary" disabled={saving} onClick={onCancel}>Voltar à agenda</button>
+        <button type="button" className="sc-btn sc-btn-secondary" disabled={saving} onClick={onCancel}>Voltar à lista</button>
       </div>
       <form onSubmit={submit} onInvalid={event => {
         const field = event.target as HTMLInputElement;
         setError(`${field.labels?.[0]?.textContent ?? 'Campo obrigatório'}: ${field.validationMessage}`);
       }} aria-describedby={error ? 'order-form-error' : undefined}>
-        {error && <p className="error" id="order-form-error" role="alert" tabIndex={-1} ref={errorRef}>{error}</p>}
+        {error && <p className="sc-alert of-error" id="order-form-error" role="alert" tabIndex={-1} ref={errorRef}>{error}</p>}
         <fieldset className="save-fields" disabled={saving}>
-        <div className="form-grid">
-          <div className="field">
-            <label htmlFor="order-customer">Nome do cliente *</label>
-            <input id="order-customer" autoComplete="name" required minLength={2} maxLength={100} value={draft.customer} onChange={event => change('customer', event.target.value)} />
-          </div>
-          <div className="field">
-            <label htmlFor="order-phone">Telefone / WhatsApp</label>
-            <input id="order-phone" type="tel" autoComplete="tel" maxLength={30} value={draft.phone} onChange={event => change('phone', event.target.value)} />
-          </div>
-          <div className="field">
-            <label htmlFor="order-date">Data *</label>
-            <input id="order-date" type="date" required value={draft.date} onChange={event => change('date', event.target.value)} />
-          </div>
-          <div className="field">
-            <label htmlFor="order-time">Horário *</label>
-            <input id="order-time" type="time" required value={draft.time} onChange={event => change('time', event.target.value)} />
-          </div>
-          <div className="field">
-            <label htmlFor="order-fulfillment">Como o pedido será recebido? *</label>
-            <select id="order-fulfillment" value={draft.fulfillment} onChange={event => change('fulfillment', event.target.value as Order['fulfillment'])}>
-              <option value="pickup">Retirada</option><option value="delivery">Entrega</option>
-            </select>
-          </div>
-          <div className="field">
-            <label htmlFor="order-status">Andamento</label>
-            <select id="order-status" value={draft.status} onChange={event => change('status', event.target.value as Order['status'])}>
-              {statuses.map(status => <option key={status.value} value={status.value}>{status.label}</option>)}
-            </select>
-          </div>
-          {draft.fulfillment === 'delivery' && <div className="field wide">
-            <label htmlFor="order-address">Endereço de entrega *</label>
-            <input id="order-address" required autoComplete="street-address" maxLength={300} value={draft.address} onChange={event => change('address', event.target.value)} />
-          </div>}
-        </div>
+        <div className="of-layout">
+          <div className="of-main">
+            <section className="sc-card of-section" aria-labelledby="order-customer-title">
+              <h2 id="order-customer-title">Cliente</h2>
+              <div className="of-grid">
+                <div className="sc-field">
+                  <label htmlFor="order-customer">Nome do cliente *</label>
+                  <input id="order-customer" autoComplete="name" required minLength={2} maxLength={100} value={draft.customer} onChange={event => change('customer', event.target.value)} />
+                </div>
+                <div className="sc-field">
+                  <label htmlFor="order-phone">Telefone / WhatsApp</label>
+                  <input id="order-phone" type="tel" autoComplete="tel" maxLength={30} value={draft.phone} onChange={event => change('phone', event.target.value)} />
+                </div>
+              </div>
+            </section>
 
-        <section className="item-editor" aria-labelledby="order-items-title">
-          <h2 id="order-items-title">Itens da encomenda</h2>
-          <p className="muted">Informe o preço por unidade, kg ou cento. Quantidades em kg aceitam até três casas decimais.</p>
-          <p className="muted">26 opções iniciais do catálogo enviado: bolos da linha party e mini salgados. Confira o preço combinado; outros produtos podem ser preenchidos manualmente.</p>
-          {lines.map((line, index) => <fieldset className="item-row" key={line.id}>
-            <legend className="item-label">Item {index + 1}</legend>
-            <div className="field catalog-picker">
-              <label htmlFor={`catalog-${line.id}`}>Preencher pelo catálogo</label>
-              <select id={`catalog-${line.id}`} value="" onChange={event => {
-                const selected = catalog.find(item => item.id === event.target.value);
-                if (selected) changeLine(line.id, { description: selected.description, unit: selected.unit, price: moneyInput(selected.unitPriceCents) });
-              }}>
-                <option value="">Selecionar produto (opcional)</option>
-                {[...new Set(catalog.map(item => item.category))].map(category => <optgroup label={category} key={category}>{catalog.filter(item => item.category === category).map(item => <option value={item.id} key={item.id}>{item.description} · {formatMoney(item.unitPriceCents)}/{item.unit}</option>)}</optgroup>)}
-              </select>
-            </div>
-            <div className="field item-description">
-              <label htmlFor={`description-${line.id}`}>Descrição *</label>
-              <input id={`description-${line.id}`} required maxLength={180} value={line.description} onChange={event => changeLine(line.id, { description: event.target.value })} />
-            </div>
-            <div className="field">
-              <label htmlFor={`quantity-${line.id}`}>Quantidade *</label>
-              <input id={`quantity-${line.id}`} required inputMode="decimal" pattern="[0-9]+([,.][0-9]{1,3})?" value={line.quantity} onChange={event => changeLine(line.id, { quantity: event.target.value })} />
-            </div>
-            <div className="field">
-              <label htmlFor={`unit-${line.id}`}>Unidade</label>
-              <select id={`unit-${line.id}`} value={line.unit} onChange={event => changeLine(line.id, { unit: event.target.value as OrderLine['unit'] })}>
-                <option value="un">Unidade</option><option value="kg">Kg</option><option value="cento">Cento</option>
-              </select>
-            </div>
-            <div className="field">
-              <label htmlFor={`price-${line.id}`}>Preço (R$) *</label>
-              <input id={`price-${line.id}`} required inputMode="decimal" pattern="[0-9]+([,.][0-9]{1,2})?" placeholder="0,00" value={line.price} onChange={event => changeLine(line.id, { price: event.target.value })} />
-            </div>
-            <button type="button" className="quiet" disabled={lines.length === 1} aria-label={`Remover item ${index + 1}`} onClick={() => {
-              setLines(current => current.filter(item => item.id !== line.id)); setError('');
-            }}>Remover</button>
-          </fieldset>)}
-          <button type="button" className="secondary" disabled={lines.length >= 100} onClick={() => {
-            const line = newLine();
-            setLines(current => [...current, line]); setError('');
-            requestAnimationFrame(() => document.getElementById(`description-${line.id}`)?.focus());
-          }}>Adicionar item</button>
-        </section>
+            <section className="sc-card of-section" aria-labelledby="order-when-title">
+              <h2 id="order-when-title">Quando e como</h2>
+              <div className="of-grid">
+                <div className="sc-field">
+                  <label htmlFor="order-date">Data *</label>
+                  <input id="order-date" type="date" required value={draft.date} onChange={event => change('date', event.target.value)} />
+                </div>
+                <div className="sc-field">
+                  <label htmlFor="order-time">Horário *</label>
+                  <input id="order-time" type="time" required value={draft.time} onChange={event => change('time', event.target.value)} />
+                </div>
+              </div>
+              <fieldset className="of-choice-group">
+                <legend>Como o pedido será recebido? *</legend>
+                <div className="of-choice">
+                  {fulfillmentOptions.map(option => <label key={option.value} className={draft.fulfillment === option.value ? 'is-on' : undefined}>
+                    <input type="radio" name="order-fulfillment" id={`order-fulfillment-${option.value}`} value={option.value}
+                      checked={draft.fulfillment === option.value} onChange={() => change('fulfillment', option.value)} />
+                    <strong>{option.title}</strong><span>{option.hint}</span>
+                  </label>)}
+                </div>
+              </fieldset>
+              {draft.fulfillment === 'delivery' && <div className="sc-field">
+                <label htmlFor="order-address">Endereço de entrega *</label>
+                <input id="order-address" required autoComplete="street-address" maxLength={300} value={draft.address} onChange={event => change('address', event.target.value)} />
+              </div>}
+            </section>
 
-        <section aria-labelledby="order-payment-title">
-          <h2 id="order-payment-title">Valores e recebimento</h2>
-          <div className="field">
-            <label htmlFor="order-received">Valor recebido — anotação manual (R$) *</label>
-            <input id="order-received" required inputMode="decimal" pattern="[0-9]+([,.][0-9]{1,2})?" value={received} aria-describedby="payment-note" onChange={event => { setReceived(event.target.value); setError(''); }} />
-            <p className="muted" id="payment-note">Este registro não confirma Pix nem recebimento bancário. Confira o pagamento antes de anotá-lo.</p>
+            <section className="sc-card of-section" aria-labelledby="order-items-title">
+              <h2 id="order-items-title">Itens</h2>
+              <p className="of-hint">Informe o preço por unidade, kg ou cento. Quantidades em kg aceitam até três casas decimais.</p>
+              <p className="of-hint">26 opções iniciais do catálogo enviado: bolos da linha party e mini salgados. Confira o preço combinado; outros produtos podem ser preenchidos manualmente.</p>
+              {lines.map((line, index) => <fieldset className="of-item" key={line.id}>
+                <legend className="of-item-label">Item {index + 1}</legend>
+                <div className="sc-field of-catalog">
+                  <label htmlFor={`catalog-${line.id}`}>Preencher pelo catálogo</label>
+                  <select id={`catalog-${line.id}`} value="" onChange={event => {
+                    const selected = catalog.find(item => item.id === event.target.value);
+                    if (selected) changeLine(line.id, { description: selected.description, unit: selected.unit, price: moneyInput(selected.unitPriceCents) });
+                  }}>
+                    <option value="">Selecionar produto (opcional)</option>
+                    {[...new Set(catalog.map(item => item.category))].map(category => <optgroup label={category} key={category}>{catalog.filter(item => item.category === category).map(item => <option value={item.id} key={item.id}>{item.description} · {formatMoney(item.unitPriceCents)}/{item.unit}</option>)}</optgroup>)}
+                  </select>
+                </div>
+                <div className="sc-field of-description">
+                  <label htmlFor={`description-${line.id}`}>Descrição *</label>
+                  <input id={`description-${line.id}`} required maxLength={180} value={line.description} onChange={event => changeLine(line.id, { description: event.target.value })} />
+                </div>
+                <div className="sc-field">
+                  <label htmlFor={`quantity-${line.id}`}>Quantidade *</label>
+                  <input id={`quantity-${line.id}`} required inputMode="decimal" pattern="[0-9]+([,.][0-9]{1,3})?" value={line.quantity} onChange={event => changeLine(line.id, { quantity: event.target.value })} />
+                </div>
+                <div className="sc-field">
+                  <label htmlFor={`unit-${line.id}`}>Unidade</label>
+                  <select id={`unit-${line.id}`} value={line.unit} onChange={event => changeLine(line.id, { unit: event.target.value as OrderLine['unit'] })}>
+                    <option value="un">Unidade</option><option value="kg">Kg</option><option value="cento">Cento</option>
+                  </select>
+                </div>
+                <div className="sc-field of-price">
+                  <label htmlFor={`price-${line.id}`}>Preço (R$) *</label>
+                  <input id={`price-${line.id}`} required inputMode="decimal" pattern="[0-9]+([,.][0-9]{1,2})?" placeholder="0,00" value={line.price} onChange={event => changeLine(line.id, { price: event.target.value })} />
+                </div>
+                <button type="button" className="sc-btn sc-btn-quiet of-remove" disabled={lines.length === 1} aria-label={`Remover item ${index + 1}`} onClick={() => {
+                  setLines(current => current.filter(item => item.id !== line.id)); setError('');
+                }}>Remover</button>
+              </fieldset>)}
+              <button type="button" className="sc-btn sc-btn-secondary of-add" disabled={lines.length >= 100} onClick={() => {
+                const line = newLine();
+                setLines(current => [...current, line]); setError('');
+                requestAnimationFrame(() => document.getElementById(`description-${line.id}`)?.focus());
+              }}>Adicionar item</button>
+            </section>
+
+            <section className="sc-card of-section" aria-labelledby="order-payment-title">
+              <h2 id="order-payment-title">Pagamento e andamento</h2>
+              <div className="of-grid">
+                <div className="sc-field">
+                  <label htmlFor="order-received">Valor recebido — anotação manual (R$) *</label>
+                  <input id="order-received" required inputMode="decimal" pattern="[0-9]+([,.][0-9]{1,2})?" value={received} aria-describedby="payment-note" onChange={event => { setReceived(event.target.value); setError(''); }} />
+                  <small id="payment-note">Este registro não confirma Pix nem recebimento bancário. Confira o pagamento antes de anotá-lo.</small>
+                </div>
+                <div className="sc-field">
+                  <label htmlFor="order-status">Andamento</label>
+                  <select id="order-status" value={draft.status} onChange={event => change('status', event.target.value as Order['status'])}>
+                    {statuses.map(status => <option key={status.value} value={status.value}>{status.label}</option>)}
+                  </select>
+                  <small>O andamento do pedido é independente do recebimento.</small>
+                </div>
+              </div>
+              <dl className="of-figures of-pay-summary" aria-live="polite">
+                <div><dt>Total</dt><dd className="sc-money">{money(summary?.totalCents)}</dd></div>
+                <div><dt>Sinal de 50%</dt><dd className="sc-money">{money(summary?.depositCents)}</dd></div>
+                <div><dt>Falta para o sinal</dt><dd className="sc-money">{money(summary?.depositDueCents)}</dd></div>
+                <div><dt>Saldo a receber</dt><dd className="sc-money">{money(summary?.balanceCents)}</dd></div>
+              </dl>
+              {!summary && <p className="of-hint">Complete os itens e confira os valores para calcular o resumo. O recebido não pode superar o total.</p>}
+              <p className="of-hint">Se houver centavo ímpar, o sinal de 50% será arredondado para cima.</p>
+            </section>
+
+            <section className="sc-card of-section" aria-labelledby="order-notes-title">
+              <h2 id="order-notes-title">Observações</h2>
+              <div className="sc-field">
+                <label htmlFor="order-notes">Observações e personalização</label>
+                <textarea id="order-notes" rows={4} maxLength={2000} value={draft.notes} onChange={event => change('notes', event.target.value)} />
+                <small>Estas observações são visíveis à produção. Use o campo de recebimento para anotar pagamentos.</small>
+              </div>
+            </section>
+            <p className="of-hint">* Campos obrigatórios.</p>
           </div>
-          <dl className="money-summary" aria-live="polite">
-            <div><dt>Total</dt><dd>{summary ? formatMoney(summary.totalCents) : '—'}</dd></div>
-            <div><dt>Sinal de 50%</dt><dd>{summary ? formatMoney(summary.depositCents) : '—'}</dd></div>
-            <div><dt>Falta para o sinal</dt><dd>{summary ? formatMoney(summary.depositDueCents) : '—'}</dd></div>
-            <div><dt>Saldo a receber</dt><dd>{summary ? formatMoney(summary.balanceCents) : '—'}</dd></div>
-          </dl>
-          {!summary && <p className="muted">Complete os itens e confira os valores para calcular o resumo. O recebido não pode superar o total.</p>}
-          <p className="muted">Se houver centavo ímpar, o sinal de 50% será arredondado para cima.</p>
-        </section>
 
-        <div className="field">
-          <label htmlFor="order-notes">Observações e personalização</label>
-          <textarea id="order-notes" rows={4} maxLength={2000} value={draft.notes} onChange={event => change('notes', event.target.value)} />
-          <p className="muted">Estas observações são visíveis à produção. Use o campo de recebimento para anotar pagamentos.</p>
-        </div>
-        <p className="muted">* Campos obrigatórios. O andamento do pedido é independente do recebimento.</p>
-        <div className="form-actions">
-          <button type="button" className="secondary" onClick={onCancel}>Cancelar</button>
-          <button type="submit" className="primary">{saving ? 'Salvando…' : 'Salvar encomenda'}</button>
+          <aside className="of-aside" aria-label="Resumo e ações">
+            <div className="sc-card of-aside-card">
+              <div className="of-total">
+                <span className="of-total-label">Total</span>
+                <strong className="sc-money of-total-value">{money(summary?.totalCents)}</strong>
+              </div>
+              <dl className="of-figures of-aside-summary">
+                <div><dt>Sinal de 50%</dt><dd className="sc-money">{money(summary?.depositCents)}</dd></div>
+                <div><dt>Recebido</dt><dd className="sc-money">{money(receivedCents)}</dd></div>
+                <div><dt>Saldo a receber</dt><dd className="sc-money">{money(summary?.balanceCents)}</dd></div>
+              </dl>
+              <div className="of-actions">
+                <button type="button" className="sc-btn sc-btn-secondary of-cancel" onClick={onCancel}>Cancelar</button>
+                <button type="submit" className="sc-btn sc-btn-primary of-save">{saving ? 'Salvando…' : 'Salvar encomenda'}</button>
+              </div>
+            </div>
+          </aside>
         </div>
         </fieldset>
       </form>
